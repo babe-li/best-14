@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import Papa from 'papaparse';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -36,12 +37,34 @@ const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
 export const Timetable = () => {
   const [db, setDb] = useState(storageService.getDB());
   const [currentUser] = useState(storageService.getCurrentUser());
-  const [selectedClass, setSelectedClass] = useState<string>('all');
-  const [selectedTeacher, setSelectedTeacher] = useState<string>('');
+  const [viewMode, setViewMode] = useState<'class' | 'teacher'>(
+    currentUser?.role === 'teacher' ? 'teacher' : 'class'
+  );
+  const [selectedClass, setSelectedClass] = useState<string>(
+    currentUser?.role === 'teacher' ? 'all' : (db.classes[0]?.id || 'all')
+  );
+  const [selectedTeacher, setSelectedTeacher] = useState<string>(
+    currentUser?.role === 'teacher' ? currentUser.id : ''
+  );
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  
+  // Import State
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importStep, setImportStep] = useState<'upload' | 'mapping' | 'preview'>('upload');
+  const [csvData, setCsvData] = useState<any[]>([]);
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
+  const [columnMapping, setColumnMapping] = useState<Record<string, string>>({
+    day: '',
+    startTime: '',
+    endTime: '',
+    subjectCode: '',
+    teacherInfo: '',
+    room: ''
+  });
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [importSuccess, setImportSuccess] = useState<number>(0);
+  const [isImporting, setIsImporting] = useState(false);
+
   const [editingEntry, setEditingEntry] = useState<TimetableEntry | null>(null);
   const [formData, setFormData] = useState<Partial<TimetableEntry>>({
     day: 'Monday',
@@ -56,96 +79,150 @@ export const Timetable = () => {
   const canManage = currentUser?.role === 'admin';
 
   useEffect(() => {
-    if (db.classes.length > 0 && !selectedClass) {
+    if (db.classes.length > 0 && selectedClass === '') {
       setSelectedClass(db.classes[0].id);
     }
   }, [db.classes, selectedClass]);
 
   const generateId = () => Math.random().toString(36).substr(2, 9);
 
-  const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      const lines = content.split('\n');
-      const headers = lines[0].toLowerCase().split(',').map(h => h.trim());
-      
-      const newEntries: TimetableEntry[] = [];
-      const errors: string[] = [];
-      let successCount = 0;
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        if (results.data && results.data.length > 0) {
+          setCsvData(results.data);
+          const headers = Object.keys(results.data[0]);
+          setCsvHeaders(headers);
+          
+          // Attempt auto-mapping
+          const newMapping = { ...columnMapping };
+          headers.forEach(h => {
+            const lowH = h.toLowerCase();
+            if (lowH.includes('day')) newMapping.day = h;
+            if (lowH.includes('start')) newMapping.startTime = h;
+            if (lowH.includes('end')) newMapping.endTime = h;
+            if (lowH.includes('subject') || lowH.includes('code')) newMapping.subjectCode = h;
+            if (lowH.includes('teacher')) newMapping.teacherInfo = h;
+            if (lowH.includes('room')) newMapping.room = h;
+          });
+          setColumnMapping(newMapping);
+          setImportStep('mapping');
+        }
+      },
+      error: (err) => {
+        setImportErrors([`Failed to parse CSV: ${err.message}`]);
+      }
+    });
+  };
 
-      // Column mapping
-      const dayIdx = headers.indexOf('day');
-      const startIdx = headers.indexOf('start_time');
-      const endIdx = headers.indexOf('end_time');
-      const subjectIdx = headers.indexOf('subject_code');
-      const teacherIdx = headers.indexOf('teacher_name');
-      const roomIdx = headers.indexOf('room');
+  const validateAndImport = () => {
+    setImportErrors([]);
+    setIsImporting(true);
+    
+    const errors: string[] = [];
+    const newEntries: TimetableEntry[] = [];
+    let successCount = 0;
 
-      if (dayIdx === -1 || startIdx === -1 || endIdx === -1 || subjectIdx === -1) {
-        setImportErrors(['Missing required columns: day, start_time, end_time, subject_code']);
+    if (!columnMapping.day || !columnMapping.startTime || !columnMapping.endTime || !columnMapping.subjectCode) {
+      errors.push('Please map the required columns: Day, Start Time, End Time, and Subject');
+      setImportErrors(errors);
+      setIsImporting(false);
+      return;
+    }
+
+    csvData.forEach((row, index) => {
+      const rowNum = index + 2;
+      const dayRaw = row[columnMapping.day];
+      const start = row[columnMapping.startTime];
+      const end = row[columnMapping.endTime];
+      const subCode = row[columnMapping.subjectCode];
+      const teacherInfo = row[columnMapping.teacherInfo];
+      const room = row[columnMapping.room] || '';
+
+      // 1. Day Validation
+      const validDay = DAYS.find(d => d.toLowerCase() === String(dayRaw).trim().toLowerCase());
+      if (!validDay) {
+        errors.push(`Row ${rowNum}: Invalid day "${dayRaw}"`);
         return;
       }
 
-      for (let i = 1; i < lines.length; i++) {
-        if (!lines[i].trim()) continue;
-        const parts = lines[i].split(',').map(p => p.trim());
-        const day = parts[dayIdx];
-        const start = parts[startIdx];
-        const end = parts[endIdx];
-        const subCode = parts[subjectIdx];
-        const teacherName = parts[teacherIdx];
-        const room = parts[roomIdx] || '';
-
-        // Validation
-        if (!DAYS.includes(day as any)) {
-          errors.push(`Line ${i + 1}: Invalid day "${day}"`);
-          continue;
-        }
-
-        const subject = db.subjects.find(s => s.code === subCode);
-        if (!subject) {
-          errors.push(`Line ${i + 1}: Subject code "${subCode}" not found`);
-          continue;
-        }
-
-        let teacherId = '';
-        if (teacherName) {
-          const teacher = db.users.find(u => u.name.toLowerCase() === teacherName.toLowerCase());
-          if (teacher) teacherId = teacher.id;
-        }
-
-        newEntries.push({
-          id: generateId(),
-          day: day as any,
-          startTime: start,
-          endTime: end,
-          subjectId: subject.id,
-          teacherId: teacherId,
-          classId: selectedClass,
-          room: room
-        });
-        successCount++;
+      // 2. Time Validation (Basic HH:mm check)
+      const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+      if (!timeRegex.test(start)) {
+        errors.push(`Row ${rowNum}: Invalid start time "${start}". Use HH:mm format.`);
+        return;
+      }
+      if (!timeRegex.test(end)) {
+        errors.push(`Row ${rowNum}: Invalid end time "${end}". Use HH:mm format.`);
+        return;
       }
 
-      if (errors.length > 0) {
-        setImportErrors(errors);
-      } else {
-        const newDb = { ...db };
-        newDb.timetable = [...(newDb.timetable || []), ...newEntries];
-        storageService.saveDB(newDb);
-        setDb(newDb);
-        setImportSuccess(successCount);
-        setTimeout(() => {
-          setIsImportModalOpen(false);
-          setImportSuccess(0);
-        }, 2000);
+      // 3. Subject Validation
+      const subject = db.subjects.find(s => 
+        s.code.toLowerCase() === String(subCode).trim().toLowerCase() ||
+        s.name.toLowerCase() === String(subCode).trim().toLowerCase()
+      );
+      if (!subject) {
+        errors.push(`Row ${rowNum}: Subject "${subCode}" not found in system.`);
+        return;
       }
-    };
-    reader.readAsText(file);
+
+      // 4. Teacher Look-up (Optional)
+      let teacherId = '';
+      if (teacherInfo) {
+        const info = String(teacherInfo).trim().toLowerCase();
+        const teacher = db.users.find(u => 
+          (u.role === 'teacher' || u.role === 'admin') &&
+          (u.name.toLowerCase() === info || u.email.toLowerCase() === info)
+        );
+        if (teacher) teacherId = teacher.id;
+      }
+
+      newEntries.push({
+        id: generateId(),
+        day: validDay,
+        startTime: start,
+        endTime: end,
+        subjectId: subject.id,
+        teacherId: teacherId,
+        classId: selectedClass !== 'all' ? selectedClass : '',
+        room: String(room)
+      });
+      successCount++;
+    });
+
+    if (errors.length > 0) {
+      setImportErrors(errors);
+      setIsImporting(false);
+    } else {
+      if (selectedClass === 'all') {
+        setImportErrors(['Please select a specific class to import this timetable into.']);
+        setIsImporting(false);
+        return;
+      }
+
+      const newDb = { ...db };
+      // Assign classId to all new entries
+      const finalEntries = newEntries.map(e => ({ ...e, classId: selectedClass }));
+      
+      newDb.timetable = [...(newDb.timetable || []), ...finalEntries];
+      storageService.saveDB(newDb);
+      setDb(newDb);
+      setImportSuccess(successCount);
+      setIsImporting(false);
+      
+      setTimeout(() => {
+        setIsImportModalOpen(false);
+        setImportStep('upload');
+        setCsvData([]);
+        setImportSuccess(0);
+      }, 2500);
+    }
   };
 
   const downloadTemplate = () => {
@@ -246,47 +323,110 @@ export const Timetable = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <select 
-            value={selectedClass}
-            onChange={(e) => setSelectedClass(e.target.value)}
-            className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-widest outline-none focus:ring-4 focus:ring-primary/5 transition-all outline-none"
-          >
-            <option value="all">All Classes</option>
-            {db.classes.map(c => (
-              <option key={c.id} value={c.id}>{c.name} {c.section}</option>
-            ))}
-          </select>
+        <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+          <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
+            <button 
+              onClick={() => {
+                setViewMode('class');
+                if (selectedClass === 'all' && db.classes.length > 0) setSelectedClass(db.classes[0].id);
+                setSelectedTeacher('');
+              }}
+              className={cn(
+                "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all gap-2 flex items-center",
+                viewMode === 'class' ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
+              )}
+            >
+              <BookOpen size={12} className={cn(viewMode === 'class' ? "text-primary" : "text-slate-300")} />
+              Class View
+            </button>
+            <button 
+              onClick={() => {
+                setViewMode('teacher');
+                setSelectedClass('all');
+                if (currentUser?.role === 'teacher') {
+                  setSelectedTeacher(currentUser.id);
+                }
+              }}
+              className={cn(
+                "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all gap-2 flex items-center",
+                viewMode === 'teacher' ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
+              )}
+            >
+              <UserIcon size={12} className={cn(viewMode === 'teacher' ? "text-primary" : "text-slate-300")} />
+              Teacher View
+            </button>
+          </div>
 
-          <select 
-            value={selectedTeacher}
-            onChange={(e) => setSelectedTeacher(e.target.value)}
-            className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-widest outline-none focus:ring-4 focus:ring-primary/5 transition-all"
-          >
-            <option value="">All Teachers</option>
-            {db.users.filter(u => u.role === 'teacher' || u.role === 'admin').map(u => (
-              <option key={u.id} value={u.id}>{u.name}</option>
-            ))}
-          </select>
+          <div className="flex items-center gap-3">
+            {viewMode === 'class' ? (
+              <select 
+                value={selectedClass}
+                onChange={(e) => setSelectedClass(e.target.value)}
+                className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-widest outline-none focus:ring-4 focus:ring-primary/5 transition-all outline-none"
+              >
+                <option value="all">All Classes</option>
+                {db.classes.map(c => (
+                  <option key={c.id} value={c.id}>{c.name} {c.section}</option>
+                ))}
+              </select>
+            ) : (
+              <select 
+                value={selectedTeacher}
+                onChange={(e) => setSelectedTeacher(e.target.value)}
+                className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-widest outline-none focus:ring-4 focus:ring-primary/5 transition-all"
+              >
+                <option value="">Select Teacher...</option>
+                {db.users.filter(u => u.role === 'teacher' || u.role === 'admin').map(u => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </select>
+            )}
 
-          {canManage && (
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={() => setIsImportModalOpen(true)}
-                className="flex items-center gap-2 bg-white text-slate-600 border border-slate-200 px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-slate-50 transition-all active:scale-95"
+            {viewMode === 'teacher' && selectedTeacher && (
+              <select 
+                value={selectedClass}
+                onChange={(e) => setSelectedClass(e.target.value)}
+                className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-widest outline-none focus:ring-4 focus:ring-primary/5 transition-all"
               >
-                <Upload size={16} />
-                Import CSV
-              </button>
+                <option value="all">All My Classes</option>
+                {db.classes.map(c => (
+                  <option key={c.id} value={c.id}>{c.name} {c.section}</option>
+                ))}
+              </select>
+            )}
+
+            {currentUser?.role === 'teacher' && selectedTeacher !== currentUser.id && (
               <button 
-                onClick={() => setIsAddModalOpen(true)}
-                className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:bg-primary-dark transition-all active:scale-95"
+                onClick={() => {
+                  setViewMode('teacher');
+                  setSelectedTeacher(currentUser.id);
+                  setSelectedClass('all');
+                }}
+                className="px-4 py-2.5 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-slate-200 transition-all"
               >
-                <Plus size={16} />
-                Add Entry
+                My Schedule
               </button>
-            </div>
-          )}
+            )}
+
+            {canManage && (
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={() => setIsImportModalOpen(true)}
+                  className="flex items-center gap-2 bg-white text-slate-600 border border-slate-200 px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-slate-50 transition-all active:scale-95"
+                >
+                  <Upload size={16} />
+                  Import CSV
+                </button>
+                <button 
+                  onClick={() => setIsAddModalOpen(true)}
+                  className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:bg-primary-dark transition-all active:scale-95"
+                >
+                  <Plus size={16} />
+                  Add Entry
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -384,43 +524,49 @@ export const Timetable = () => {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed inset-0 m-auto w-full max-w-lg h-fit bg-white z-[110] rounded-3xl shadow-2xl overflow-hidden border border-slate-200"
+              className="fixed inset-0 m-auto w-full max-w-xl h-fit max-h-[90vh] bg-white z-[110] rounded-3xl shadow-2xl overflow-hidden border border-slate-200 flex flex-col"
             >
               <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
                 <div>
-                  <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-tight">Bulk Import Sessions</h3>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Populate timetable from CSV</p>
+                  <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-tight">
+                    {importStep === 'upload' ? 'Bulk Import Sessions' : 'Map CSV Columns'}
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+                    {importStep === 'upload' ? 'Populate timetable from CSV' : `Class: ${db.classes.find(c => c.id === selectedClass)?.name || 'N/A'}`}
+                  </p>
                 </div>
                 <button type="button" onClick={() => setIsImportModalOpen(false)} className="p-2 hover:bg-slate-200/50 rounded-full transition-all">
                   <X size={18} />
                 </button>
               </div>
 
-              <div className="p-8 space-y-6">
+              <div className="p-8 space-y-6 overflow-y-auto">
                 {importSuccess > 0 ? (
-                  <div className="bg-emerald-50 border border-emerald-100 p-6 rounded-2xl flex flex-col items-center justify-center text-center gap-3">
-                    <div className="w-12 h-12 bg-emerald-500 text-white rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                      <Check size={24} />
+                  <div className="bg-emerald-50 border border-emerald-100 p-8 rounded-2xl flex flex-col items-center justify-center text-center gap-4">
+                    <div className="w-16 h-16 bg-emerald-500 text-white rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/20 animate-bounce">
+                      <Check size={32} />
                     </div>
                     <div>
-                      <p className="text-sm font-black text-emerald-600 uppercase tracking-tight">Import Successful!</p>
-                      <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest mt-1">{importSuccess} sessions added to the schedule</p>
+                      <p className="text-lg font-black text-emerald-600 uppercase tracking-tight">Import Successful!</p>
+                      <p className="text-xs text-emerald-500 font-bold uppercase tracking-widest mt-1">
+                        {importSuccess} sessions synchronized for {db.classes.find(c => c.id === selectedClass)?.name}
+                      </p>
                     </div>
                   </div>
-                ) : (
+                ) : importStep === 'upload' ? (
                   <>
-                    <div className="p-6 border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50/50 hover:bg-slate-50 transition-all group flex flex-col items-center justify-center gap-4 text-center">
-                      <div className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center text-slate-400 group-hover:text-primary group-hover:scale-110 transition-all">
-                        <Upload size={24} />
+                    <div className="p-10 border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50/50 hover:bg-slate-50 transition-all group relative flex flex-col items-center justify-center gap-4 text-center">
+                      <div className="w-14 h-14 bg-white rounded-2xl shadow-sm flex items-center justify-center text-slate-400 group-hover:text-primary group-hover:scale-110 transition-all">
+                        <Upload size={28} />
                       </div>
                       <div>
-                        <p className="text-xs font-black text-slate-700 uppercase tracking-tight">Drop your CSV here</p>
+                        <p className="text-sm font-black text-slate-700 uppercase tracking-tight">Drop your CSV here</p>
                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">or click to browse files</p>
                       </div>
                       <input 
                         type="file" 
                         accept=".csv"
-                        onChange={handleImportCSV}
+                        onChange={handleFileUpload}
                         className="absolute inset-0 opacity-0 cursor-pointer"
                       />
                     </div>
@@ -429,9 +575,9 @@ export const Timetable = () => {
                       <div className="bg-amber-50 border border-amber-100 p-4 rounded-xl flex items-start gap-3">
                         <AlertTriangle className="text-amber-500 flex-shrink-0" size={16} />
                         <div>
-                          <p className="text-[10px] font-black text-amber-700 uppercase tracking-tight">Formatting Guard</p>
+                          <p className="text-[10px] font-black text-amber-700 uppercase tracking-tight">Data Integrity Guard</p>
                           <p className="text-[9px] font-bold text-amber-600/80 leading-relaxed mt-1">
-                            Ensure column names strictly match: <span className="font-black">day, start_time, end_time, subject_code, teacher_name, room</span>
+                            The system will allow you to map your own headers in the next step. Ensure subject codes match exactly.
                           </p>
                         </div>
                       </div>
@@ -441,18 +587,98 @@ export const Timetable = () => {
                         className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-white border border-slate-200 rounded-xl text-[10px] font-black text-slate-500 uppercase tracking-widest hover:bg-slate-50 transition-all shadow-sm"
                       >
                         <FileDown size={14} />
-                        Download CSV Template
+                        Download Reference Template
                       </button>
                     </div>
                   </>
-                )}
+                ) : (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                      {Object.keys(columnMapping).map((field) => (
+                        <div key={field} className="space-y-2">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
+                            {field.replace(/([A-Z])/g, ' $1').trim()}
+                            {['day', 'startTime', 'endTime', 'subjectCode'].includes(field) && <span className="text-red-500">*</span>}
+                          </label>
+                          <select
+                            value={columnMapping[field]}
+                            onChange={(e) => setColumnMapping({ ...columnMapping, [field]: e.target.value })}
+                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-4 focus:ring-primary/5 outline-none transition-all"
+                          >
+                            <option value="">Select Column...</option>
+                            {csvHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                          </select>
+                        </div>
+                      ))}
+                    </div>
 
-                {importErrors.length > 0 && (
-                  <div className="max-h-40 overflow-y-auto space-y-2 p-4 bg-red-50 border border-red-100 rounded-xl">
-                    <p className="text-[10px] font-black text-red-600 uppercase tracking-widest mb-1">Import Errors Detected:</p>
-                    {importErrors.map((err, i) => (
-                      <p key={i} className="text-[9px] font-bold text-red-500">{err}</p>
-                    ))}
+                    <div className="p-4 bg-slate-100 rounded-2xl border border-slate-200">
+                      <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+                        <ArrowRight size={12} className="text-primary" />
+                        First 3 rows preview
+                      </p>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr>
+                              {csvHeaders.slice(0, 4).map(h => <th key={h} className="text-[8px] font-black text-slate-400 uppercase px-2 py-1">{h}</th>)}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {csvData.slice(0, 3).map((row, i) => (
+                              <tr key={i} className="border-t border-slate-200">
+                                {csvHeaders.slice(0, 4).map(h => <td key={h} className="text-[10px] font-medium text-slate-600 px-2 py-1.5 truncate max-w-[100px]">{row[h]}</td>)}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {importErrors.length > 0 && (
+                      <div className="max-h-32 overflow-y-auto space-y-2 p-4 bg-red-50 border border-red-100 rounded-xl">
+                        <p className="text-[10px] font-black text-red-600 uppercase tracking-widest mb-1">Validation Errors:</p>
+                        {importErrors.map((err, i) => (
+                          <p key={i} className="text-[9px] font-bold text-red-500 flex items-center gap-2">
+                            <AlertTriangle size={10} />
+                            {err}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="flex gap-4 pt-4">
+                      <button 
+                        onClick={() => {
+                          setImportStep('upload');
+                          setImportErrors([]);
+                        }} 
+                        className="flex-1 py-3.5 bg-slate-100 text-slate-500 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all"
+                      >
+                        Back
+                      </button>
+                      <button 
+                        onClick={validateAndImport}
+                        disabled={isImporting}
+                        className="flex-[2] py-3.5 bg-primary text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-primary/20 hover:bg-primary-dark transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        {isImporting ? (
+                          <>
+                            <motion.div 
+                              animate={{ rotate: 360 }}
+                              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                              className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
+                            />
+                            Validating...
+                          </>
+                        ) : (
+                          <>
+                            <Save size={14} />
+                            Finalize Import
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

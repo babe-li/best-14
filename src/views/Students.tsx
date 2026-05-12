@@ -106,6 +106,8 @@ export const Students = () => {
   const [selectedClass, setSelectedClass] = useState('all');
   const [selectedSection, setSelectedSection] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   const [availableSections, setAvailableSections] = useState<string[]>([]);
   const [updatedStudentId, setUpdatedStudentId] = useState<string | null>(null);
 
@@ -560,6 +562,16 @@ export const Students = () => {
     return matchesSearch && matchesClass && matchesSection && matchesStatus;
   });
 
+  const totalPages = Math.ceil(filteredStudents.length / itemsPerPage);
+  const paginatedStudents = filteredStudents.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedClass, selectedSection, selectedStatus]);
+
   return (
     <div className="space-y-8">
       {/* Header Actions */}
@@ -722,7 +734,7 @@ export const Students = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredStudents.length > 0 ? filteredStudents.map((student) => {
+              {paginatedStudents.length > 0 ? paginatedStudents.map((student) => {
                 const isRecentlyUpdated = updatedStudentId === student.id || (
                   student.updatedAt && (new Date().getTime() - new Date(student.updatedAt).getTime() < 5000)
                 );
@@ -913,6 +925,59 @@ export const Students = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {filteredStudents.length > 0 && (
+          <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+              Showing <span className="text-slate-900">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="text-slate-900">{Math.min(currentPage * itemsPerPage, filteredStudents.length)}</span> of <span className="text-slate-900">{filteredStudents.length}</span> students
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-white transition-all shadow-sm"
+              >
+                Previous
+              </button>
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => {
+                  // Only show current page, first, last, and neighbors if many pages
+                  const isVisible = page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1;
+                  
+                  if (!isVisible) {
+                    if (page === currentPage - 2 || page === currentPage + 2) {
+                      return <span key={page} className="text-slate-300 px-1">...</span>;
+                    }
+                    return null;
+                  }
+
+                  return (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={cn(
+                        "w-8 h-8 rounded-xl text-[10px] font-black transition-all",
+                        currentPage === page 
+                          ? "bg-primary text-white shadow-lg shadow-primary/20" 
+                          : "bg-white border border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-50 shadow-sm"
+                      )}
+                    >
+                      {page}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-white transition-all shadow-sm"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Comprehensive Student Detail Modal */}
@@ -1301,26 +1366,91 @@ export const Students = () => {
                   </div>
                 )}
 
-                {activeTab === 'attendance' && (
+                {activeTab === 'attendance' && (() => {
+                  const filteredAttendance = (db.attendance || []).filter(a => {
+                    const matchesStudent = a.studentId === selectedStudent.id;
+                    const matchesStatus = attendanceFilters.status === 'all' || a.status === attendanceFilters.status;
+                    const matchesStartDate = !attendanceFilters.startDate || a.date >= attendanceFilters.startDate;
+                    const matchesEndDate = !attendanceFilters.endDate || a.date <= attendanceFilters.endDate;
+                    return matchesStudent && matchesStatus && matchesStartDate && matchesEndDate;
+                  });
+
+                  return (
                   <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="flex flex-col lg:flex-row gap-4 bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm">
+                      <div className="flex-1 flex flex-col gap-1.5">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Temporal Search Scope (Date Range)</label>
+                        <div className="flex items-center gap-3">
+                          <div className="relative flex-1">
+                            <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                            <input 
+                              type="date" 
+                              value={attendanceFilters.startDate}
+                              onChange={(e) => setAttendanceFilters({...attendanceFilters, startDate: e.target.value})}
+                              className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-4 focus:ring-primary/5 transition-all"
+                            />
+                          </div>
+                          <span className="text-slate-300 font-black text-[10px] uppercase tracking-widest">TO</span>
+                          <div className="relative flex-1">
+                            <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                            <input 
+                              type="date" 
+                              value={attendanceFilters.endDate}
+                              onChange={(e) => setAttendanceFilters({...attendanceFilters, endDate: e.target.value})}
+                              className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-4 focus:ring-primary/5 transition-all"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1.5 min-w-[200px]">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Compliance Status</label>
+                        <div className="relative">
+                          <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                          <select 
+                            value={attendanceFilters.status}
+                            onChange={(e) => setAttendanceFilters({...attendanceFilters, status: e.target.value})}
+                            className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-tight outline-none focus:ring-4 focus:ring-primary/5 transition-all"
+                          >
+                            <option value="all">Every Metric</option>
+                            <option value="present">Present (Normal)</option>
+                            <option value="absent">Absent (Intervention)</option>
+                            <option value="late">Late (Tardy)</option>
+                          </select>
+                        </div>
+                      </div>
+                      {(attendanceFilters.startDate || attendanceFilters.endDate || attendanceFilters.status !== 'all') && (
+                        <div className="flex flex-col gap-1.5 lg:pt-[22px]">
+                          <button 
+                            onClick={() => setAttendanceFilters({ status: 'all', startDate: '', endDate: '' })}
+                            className="p-2.5 text-red-500 bg-red-50 hover:bg-red-100 border border-red-100 rounded-xl transition-all active:scale-95"
+                            title="Reset Observational Filters"
+                          >
+                            <RefreshCw size={18} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                       <div className="md:col-span-1 space-y-4">
                         <div className="p-8 bg-white rounded-[32px] border border-slate-100 shadow-sm flex flex-col items-center">
                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Registry Logs</p>
                           <p className="text-4xl font-black text-slate-900 italic">
-                            {db.attendance?.filter(a => a.studentId === selectedStudent.id).length || 0}
+                            {filteredAttendance.length}
                           </p>
                         </div>
                         <div className="p-8 bg-emerald-50 rounded-[32px] border border-emerald-100 shadow-sm flex flex-col items-center">
                           <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-2">Presence Index</p>
                           <p className="text-4xl font-black text-emerald-600 italic">
-                            {Math.round((db.attendance?.filter(a => a.studentId === selectedStudent.id && a.status === 'present').length || 0) / (db.attendance?.filter(a => a.studentId === selectedStudent.id).length || 1) * 100)}%
+                            {filteredAttendance.length > 0 
+                              ? Math.round((filteredAttendance.filter(a => a.status === 'present').length / filteredAttendance.length) * 100)
+                              : 0}%
                           </p>
                         </div>
                         <div className="p-8 bg-red-50 rounded-[32px] border border-red-100 shadow-sm flex flex-col items-center">
                           <p className="text-[9px] font-black text-red-500 uppercase tracking-widest mb-2">Absence Count</p>
                           <p className="text-4xl font-black text-red-600 italic">
-                            {db.attendance?.filter(a => a.studentId === selectedStudent.id && a.status === 'absent').length || 0}
+                            {filteredAttendance.filter(a => a.status === 'absent').length}
                           </p>
                         </div>
                       </div>
@@ -1329,15 +1459,15 @@ export const Students = () => {
                          <div className="flex items-center justify-between mb-8">
                             <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
                                <Clock size={14} className="text-primary" />
-                               Monthly Attendance Distribution
+                               Attendance Distribution (Filtered)
                             </h4>
                          </div>
                          <div className="h-64 w-full">
                             <ResponsiveContainer width="100%" height="100%">
                                <BarChart data={[
-                                 { name: 'Present', count: db.attendance?.filter(a => a.studentId === selectedStudent.id && a.status === 'present').length || 0, color: '#10b981' },
-                                 { name: 'Absent', count: db.attendance?.filter(a => a.studentId === selectedStudent.id && a.status === 'absent').length || 0, color: '#ef4444' },
-                                 { name: 'Late', count: db.attendance?.filter(a => a.studentId === selectedStudent.id && a.status === 'late').length || 0, color: '#f59e0b' },
+                                 { name: 'Present', count: filteredAttendance.filter(a => a.status === 'present').length, color: '#10b981' },
+                                 { name: 'Absent', count: filteredAttendance.filter(a => a.status === 'absent').length, color: '#ef4444' },
+                                 { name: 'Late', count: filteredAttendance.filter(a => a.status === 'late').length, color: '#f59e0b' },
                                ]}>
                                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                                   <XAxis 
@@ -1364,8 +1494,8 @@ export const Students = () => {
                                     }}
                                   />
                                   <Bar dataKey="count" radius={[8, 8, 0, 0]}>
-                                     {[0, 1, 2].map((entry, index) => (
-                                       <Cell key={`cell-${index}`} fill={index === 0 ? '#10b981' : index === 1 ? '#ef4444' : '#f59e0b'} />
+                                     {['#10b981', '#ef4444', '#f59e0b'].map((color, index) => (
+                                       <Cell key={`cell-${index}`} fill={color} />
                                      ))}
                                   </Bar>
                                </BarChart>
@@ -1375,8 +1505,13 @@ export const Students = () => {
                     </div>
 
                     <div className="bg-white border border-slate-200 rounded-[32px] overflow-hidden shadow-sm pt-2">
-                       <div className="px-8 py-4 border-b border-slate-50">
+                       <div className="px-8 py-4 border-b border-slate-50 flex items-center justify-between">
                           <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Observation Window Log</h4>
+                          {filteredAttendance.length !== (db.attendance?.filter(a => a.studentId === selectedStudent.id).length || 0) && (
+                            <span className="text-[9px] font-black text-primary uppercase tracking-widest px-3 py-1 bg-primary/5 rounded-lg border border-primary/10">
+                              Filtered Results: {filteredAttendance.length}
+                            </span>
+                          )}
                        </div>
                       <table className="w-full text-left">
                         <thead>
@@ -1387,7 +1522,7 @@ export const Students = () => {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
-                          {db.attendance?.filter(a => a.studentId === selectedStudent.id)
+                          {filteredAttendance
                             .sort((a, b) => b.date.localeCompare(a.date))
                             .map(record => (
                             <tr key={record.id} className="text-xs font-bold hover:bg-slate-50 transition-colors">
@@ -1409,10 +1544,10 @@ export const Students = () => {
                               </td>
                             </tr>
                           ))}
-                          {(!db.attendance || db.attendance.filter(a => a.studentId === selectedStudent.id).length === 0) && (
+                          {filteredAttendance.length === 0 && (
                             <tr>
                               <td colSpan={3} className="px-8 py-16 text-center text-slate-300 italic font-black uppercase tracking-[0.2em] text-[10px]">
-                                Zero occupancy logs captured for this entity
+                                Zero occupancy logs captured for this criteria
                               </td>
                             </tr>
                           )}
@@ -1420,8 +1555,9 @@ export const Students = () => {
                       </table>
                     </div>
                   </div>
-                )}
-                {activeTab === 'remarks' && (
+                );
+              })()}
+              {activeTab === 'remarks' && (
                   <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                        <div className="md:col-span-2 space-y-6">

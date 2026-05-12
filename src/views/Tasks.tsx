@@ -33,6 +33,8 @@ export const Tasks = () => {
   const [currentUser] = useState(storageService.getCurrentUser());
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'completed'>('all');
   const [selectedCategory, setSelectedCategory] = useState<TaskCategory | 'all'>('all');
+  const [selectedPriority, setSelectedPriority] = useState<TaskPriority | 'all'>('all');
+  const [selectedStatus, setSelectedStatus] = useState<TaskStatus | 'all'>('all');
   const [selectedAssignee, setSelectedAssignee] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -72,11 +74,13 @@ export const Tasks = () => {
                       t.status === 'Completed';
     const matchesCategory = selectedCategory === 'all' ? true : t.category === selectedCategory;
     const matchesAssignee = selectedAssignee === 'all' ? true : t.assigneeId === selectedAssignee;
+    const matchesPriority = selectedPriority === 'all' ? true : t.priority === selectedPriority;
+    const matchesStatus = selectedStatus === 'all' ? true : t.status === selectedStatus;
     
     // Visibility: Admins see all, teachers see theirs or what's assigned to them/their students
     const hasAccess = currentUser?.role === 'admin' || t.creatorId === currentUser?.id || t.assigneeId === currentUser?.id;
     
-    return matchesSearch && matchesTab && matchesCategory && matchesAssignee && hasAccess;
+    return matchesSearch && matchesTab && matchesCategory && matchesAssignee && matchesPriority && matchesStatus && hasAccess;
   });
 
   const saveTask = (e: React.FormEvent) => {
@@ -247,6 +251,30 @@ export const Tasks = () => {
             ))}
           </div>
           
+          <select 
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value as any)}
+            className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest outline-none focus:ring-4 focus:ring-primary/5 transition-all w-full lg:w-auto"
+          >
+            <option value="all">Every Status</option>
+            <option value="Pending">Pending</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Completed">Completed</option>
+            <option value="Cancelled">Cancelled</option>
+          </select>
+
+          <select 
+            value={selectedPriority}
+            onChange={(e) => setSelectedPriority(e.target.value as any)}
+            className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest outline-none focus:ring-4 focus:ring-primary/5 transition-all w-full lg:w-auto"
+          >
+            <option value="all">Every Priority</option>
+            <option value="Low">Low</option>
+            <option value="Medium">Medium</option>
+            <option value="High">High</option>
+            <option value="Urgent">Urgent</option>
+          </select>
+
           <select 
             value={selectedAssignee}
             onChange={(e) => setSelectedAssignee(e.target.value)}

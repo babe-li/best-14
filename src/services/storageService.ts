@@ -106,10 +106,58 @@ const INITIAL_DB: DB = {
   attendance: [],
   tasks: [],
   subjects: [
-    { id: 'sub_1', name: 'Mathematics', code: 'MATH', levels: ['Form 1', 'Form 2', 'Form 3', 'Form 4'] },
-    { id: 'sub_2', name: 'Physics', code: 'PHYS', levels: ['Form 1', 'Form 2', 'Form 3', 'Form 4'] },
-    { id: 'sub_3', name: 'Biology', code: 'BIOL', levels: ['Form 1', 'Form 2', 'Form 3', 'Form 4'] },
-    { id: 'sub_4', name: 'English', code: 'ENGL', levels: ['Form 1', 'Form 2', 'Form 3', 'Form 4'] }
+    { 
+      id: 'sub_1', 
+      name: 'Mathematics', 
+      code: 'MATH', 
+      levels: ['Form 1', 'Form 2', 'Form 3', 'Form 4'],
+      description: 'The mathematics curriculum focus on developing logical reasoning, problem-solving skills, and abstract thinking. It covers algebraic concepts, geometry, trigonometry, and statistics essential for NECTA standards.',
+      learningObjectives: [
+        'Master core algebraic manipulations and equation solving',
+        'Apply geometric theorems to physical and theoretical structures',
+        'Understand and interpret complex statistical datasets',
+        'Develop advanced trigonometric modeling capabilities'
+      ]
+    },
+    { 
+      id: 'sub_2', 
+      name: 'Physics', 
+      code: 'PHYS', 
+      levels: ['Form 1', 'Form 2', 'Form 3', 'Form 4'],
+      description: 'This module explores the fundamental laws governing the universe, from mechanics to quantum theory. Laboratory work is emphasized to bridge the gap between theoretical calculations and physical reality.',
+      learningObjectives: [
+        'Understand the laws of motion and their applications in engineering',
+        'Explore the properties of light, sound, and electromagnetism',
+        'Conduct rigorous experimental investigations and data analysis',
+        'Master the principles of energy transformation and conservation'
+      ]
+    },
+    { 
+      id: 'sub_3', 
+      name: 'Biology', 
+      code: 'BIOL', 
+      levels: ['Form 1', 'Form 2', 'Form 3', 'Form 4'],
+      description: 'Biology investigates the complexity of living organisms and their interactions with the environment. The focus is on cellular biology, genetics, ecology, and human physiology within the Tanzanian context.',
+      learningObjectives: [
+        'Analyze the structures and functions of plant and animal cells',
+        'Understand the mechanisms of inheritance and genetic variation',
+        'Examine ecological systems and conservation strategies',
+        'Apply biological knowledge to health and sanitation challenges'
+      ]
+    },
+    { 
+      id: 'sub_4', 
+      name: 'English', 
+      code: 'ENGL', 
+      levels: ['Form 1', 'Form 2', 'Form 3', 'Form 4'],
+      description: 'The English language curriculum enhances communicative competence, literary appreciation, and critical analysis. It prepares students for academic excellence and effective global communication.',
+      learningObjectives: [
+        'Develop advanced writing skills for various academic and professional contexts',
+        'Critically analyze diverse literary works and perspectives',
+        'Master complex grammatical structures and vocabulary',
+        'Enhance verbal communication and public speaking confidence'
+      ]
+    }
   ],
   settings: {
     sections: ['A', 'B', 'C', 'Gold', 'Silver'],

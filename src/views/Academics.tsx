@@ -39,7 +39,12 @@ import {
   ResponsiveContainer,
   PieChart,
   Pie,
-  Cell
+  Cell,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Radar
 } from 'recharts';
 import { storageService } from '../services/storageService';
 import { type Student, type Result, type Exam, type Subject, type AcademicLevel } from '../types';
@@ -55,6 +60,8 @@ export const Academics = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClass, setSelectedClass] = useState('all');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [selectedTerm, setSelectedTerm] = useState<number>(2);
+  const [selectedYear, setSelectedYear] = useState<number>(2026);
   const [selectedResultForFeedback, setSelectedResultForFeedback] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState<'audit' | 'curriculum'>('audit');
   
@@ -146,23 +153,29 @@ export const Academics = () => {
     });
   };
 
-  const getStudentResults = (studentId: string) => {
+  const getStudentResults = (studentId: string, term?: number, year?: number) => {
     // Get all results for this student from the top-level results array
-    const studentResults = db.results.filter(r => r.studentId === studentId);
+    let studentResults = db.results.filter(r => r.studentId === studentId);
     
     return studentResults.map(result => {
       const exam = db.exams.find(e => e.id === result.examId);
       return {
         ...result,
+        term: exam?.term,
+        year: exam?.year,
         subjectName: exam?.subjectId || 'Unknown',
         level: (exam?.classId || 'Form 4') as AcademicLevel,
         subjectCode: db.subjects.find(s => s.id === (exam?.subjectId || ''))?.code || ''
       };
+    }).filter(r => {
+      const termMatch = !term || r.term === term;
+      const yearMatch = !year || r.year === year;
+      return termMatch && yearMatch;
     });
   };
 
-  const getDivisionStats = (student: Student) => {
-    const results = getStudentResults(student.id);
+  const getDivisionStats = (student: Student, term?: number, year?: number) => {
+    const results = getStudentResults(student.id, term, year);
     if (results.length === 0) return null;
     
     // We assume the class level from the student's assigned class
@@ -222,7 +235,7 @@ export const Academics = () => {
   });
 
   const divisionData = filteredStudents.map(s => {
-    const stats = getDivisionStats(s);
+    const stats = getDivisionStats(s, selectedTerm, selectedYear);
     return {
       student: s,
       stats
@@ -242,24 +255,52 @@ export const Academics = () => {
   return (
     <div className="space-y-8 pb-20">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h2 className="text-2xl font-black text-slate-900 tracking-tight uppercase">Academic Performance Audit</h2>
-          <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1 italic flex items-center gap-2">
-            <TrendingUp size={14} className="text-primary" />
-            NECTA Standards Compliance & Division Analytics
-          </p>
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight italic">ACADEMIC PULSE</h2>
+          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em] mt-1">Real-time Performance & NECTA Audit Engine</p>
         </div>
+        
         <div className="flex items-center gap-3">
-           <div className="px-4 py-2 bg-white border border-slate-200 rounded-xl flex items-center gap-3 shadow-sm group hover:border-primary transition-all">
-              <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
-                 <BrainCircuit size={18} />
-              </div>
-              <div className="text-right">
-                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Audit Protocol</p>
-                 <p className="text-xs font-black text-slate-900 leading-none">V2.46 - NECTA</p>
-              </div>
-           </div>
+          <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+             {[2025, 2026].map(year => (
+               <button 
+                 key={year}
+                 onClick={() => setSelectedYear(year)}
+                 className={cn(
+                   "px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
+                   selectedYear === year ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
+                 )}
+               >
+                 FY {year}
+               </button>
+             ))}
+          </div>
+
+          <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+             {[1, 2].map(term => (
+               <button 
+                 key={term}
+                 onClick={() => setSelectedTerm(term)}
+                 className={cn(
+                   "px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
+                   selectedTerm === term ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
+                 )}
+               >
+                 T{term}
+               </button>
+             ))}
+          </div>
+
+          <div className="px-4 py-2 bg-white border border-slate-200 rounded-xl flex items-center gap-3 shadow-sm group hover:border-primary transition-all">
+             <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+                <BrainCircuit size={18} />
+             </div>
+             <div className="text-right">
+                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Audit Protocol</p>
+                <p className="text-xs font-black text-slate-900 leading-none">V2.46 - NECTA</p>
+             </div>
+          </div>
         </div>
       </div>
 
@@ -916,49 +957,151 @@ export const Academics = () => {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-8 bg-slate-50">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                  <div className="p-6 bg-white rounded-3xl border border-slate-200 shadow-sm">
-                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">NECTA Division Outcome</h4>
-                    {(() => {
-                      const stats = getDivisionStats(selectedStudent);
-                      if (!stats || stats === 'N/A') return <p className="text-sm font-bold text-slate-400 italic">Audit insufficient...</p>;
-                      
-                      return (
-                        <div className="flex items-center justify-between">
-                           <div>
-                              <p className="text-4xl font-black text-slate-900 italic tracking-tighter">Div {stats.division}</p>
-                              <p className="text-[10px] font-bold text-primary uppercase tracking-widest mt-1">Official Result Plan</p>
-                           </div>
-                           <div className="text-right">
-                              <p className="text-xl font-black text-slate-900">{stats.points} PTS</p>
-                              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">(Best 7 Logic)</p>
-                           </div>
-                        </div>
-                      );
-                    })()}
+              <div className="flex-1 overflow-y-auto p-8 bg-slate-50 space-y-8">
+                {/* Term Selector In-Modal */}
+                <div className="flex items-center justify-between bg-white px-6 py-4 rounded-3xl border border-slate-200 shadow-sm">
+                   <div>
+                      <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Audit Temporal Context</h4>
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Academic Session {selectedYear} / Term {selectedTerm}</p>
+                   </div>
+                   <div className="flex gap-2">
+                       <select 
+                         value={selectedTerm}
+                         onChange={(e) => setSelectedTerm(Number(e.target.value))}
+                         className="bg-slate-50 border border-slate-100 rounded-lg px-3 py-1.5 text-[10px] font-black uppercase tracking-widest outline-none focus:ring-2 focus:ring-primary/20"
+                       >
+                          <option value={1}>Term 1</option>
+                          <option value={2}>Term 2</option>
+                       </select>
+                   </div>
+                </div>
+
+                {/* Performance Analytics Section */}
+                <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                  {/* Stats Cards */}
+                  <div className="lg:col-span-2 space-y-4">
+                    <div className="p-6 bg-white rounded-3xl border border-slate-200 shadow-sm">
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">NECTA Division Outcome</h4>
+                      {(() => {
+                        const stats = getDivisionStats(selectedStudent, selectedTerm, selectedYear);
+                        if (!stats || stats === 'N/A') return <p className="text-sm font-bold text-slate-400 italic">Audit insufficient...</p>;
+                        
+                        return (
+                          <div className="flex items-center justify-between">
+                             <div>
+                                <p className="text-4xl font-black text-slate-900 italic tracking-tighter">Div {stats.division}</p>
+                                <p className="text-[10px] font-bold text-primary uppercase tracking-widest mt-1">Official Result Plan</p>
+                             </div>
+                             <div className="text-right">
+                                <p className="text-xl font-black text-slate-900">{stats.points} PTS</p>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">(Best 7 Logic)</p>
+                             </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                    
+                    <div className="p-6 bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                       <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Mean Score Analytics</h4>
+                       <div className="flex items-end justify-between">
+                         {(() => {
+                           const results = getStudentResults(selectedStudent.id, selectedTerm, selectedYear);
+                           const avg = results.length > 0 
+                             ? Math.round(results.reduce((acc, curr) => acc + curr.marks, 0) / results.length)
+                             : 0;
+                           return (
+                             <>
+                               <div>
+                                 <p className="text-4xl font-black text-slate-900 italic">{avg}%</p>
+                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Composite Average</p>
+                               </div>
+                               <div className={cn(
+                                 "px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest",
+                                 avg >= 75 ? "bg-emerald-50 text-emerald-600" :
+                                 avg >= 50 ? "bg-blue-50 text-blue-600" : "bg-red-50 text-red-600"
+                               )}>
+                                 {avg >= 75 ? 'Distinction' : avg >= 50 ? 'Credit' : 'Review Required'}
+                               </div>
+                             </>
+                           );
+                         })()}
+                       </div>
+                    </div>
+
+                    <div className="p-6 bg-white rounded-3xl border border-slate-200 shadow-sm">
+                       <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 text-center">Credit Compliance</h4>
+                       <div className="flex justify-center gap-2">
+                          {(() => {
+                             const stats = getDivisionStats(selectedStudent, selectedTerm, selectedYear);
+                             if (!stats || stats === 'N/A') return Array.from({ length: 7 }).map((_, i) => (
+                               <div key={i} className="w-4 h-4 rounded-full border-2 bg-white border-slate-100" />
+                             ));
+                             return Array.from({ length: 7 }).map((_, i) => (
+                                <div 
+                                  key={i}
+                                  className={cn(
+                                     "w-4 h-4 rounded-full border-2",
+                                     i < stats.credits ? "bg-emerald-500 border-emerald-500" : "bg-white border-slate-200"
+                                  )}
+                                />
+                             ));
+                          })()}
+                       </div>
+                       <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest text-center mt-4">
+                          {getDivisionStats(selectedStudent, selectedTerm, selectedYear) !== 'N/A' && (getDivisionStats(selectedStudent, selectedTerm, selectedYear) as any)?.credits >= 3 ? "Meets Core Division Requirements" : "Below Minimum Credits for Div I-III"}
+                       </p>
+                    </div>
                   </div>
-                  
-                  <div className="p-6 bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between">
-                     <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 text-center">Credit Compliance</h4>
-                     <div className="flex justify-center gap-2">
+
+                  {/* Radar Chart Visualization */}
+                  <div className="lg:col-span-3 bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm relative overflow-hidden flex flex-col">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Subject Competency Radar</h4>
+                      <BookOpen size={14} className="text-primary" />
+                    </div>
+                    
+                    <div className="flex-1 h-[300px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
                         {(() => {
-                           const stats = getDivisionStats(selectedStudent);
-                           if (!stats || stats === 'N/A') return null;
-                           return Array.from({ length: 7 }).map((_, i) => (
-                              <div 
-                                key={i}
-                                className={cn(
-                                   "w-4 h-4 rounded-full border-2",
-                                   i < stats.credits ? "bg-emerald-500 border-emerald-500" : "bg-white border-slate-200"
-                                )}
+                          const results = getStudentResults(selectedStudent.id, selectedTerm, selectedYear);
+                          const radarData = results.map(r => ({
+                            subject: r.subjectCode || r.subjectName.substring(0, 4),
+                            A: r.marks,
+                            fullMark: 100
+                          }));
+
+                          if (radarData.length < 3) {
+                            return (
+                              <div className="flex flex-col items-center justify-center h-full text-slate-300">
+                                <PieChartIcon size={40} className="mb-2 opacity-20" />
+                                <p className="text-[10px] font-black uppercase tracking-[0.2em]">Insufficient Data for Radar</p>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
+                              <PolarGrid stroke="#f1f5f9" />
+                              <PolarAngleAxis 
+                                dataKey="subject" 
+                                tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }}
                               />
-                           ));
+                              <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
+                              <Radar
+                                name={selectedStudent.name}
+                                dataKey="A"
+                                stroke="#3b82f6"
+                                fill="#3b82f6"
+                                fillOpacity={0.6}
+                              />
+                              <Tooltip 
+                                contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '10px', fontWeight: '900' }}
+                              />
+                            </RadarChart>
+                          );
                         })()}
-                     </div>
-                     <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest text-center mt-4">
-                        {getDivisionStats(selectedStudent) !== 'N/A' && (getDivisionStats(selectedStudent) as any)?.credits >= 3 ? "Meets Core Division Requirements" : "Below Minimum Credits for Div I-III"}
-                     </p>
+                      </ResponsiveContainer>
+                    </div>
                   </div>
                 </div>
 
@@ -974,7 +1117,7 @@ export const Academics = () => {
                     </thead>
                     <tbody className="divide-y divide-slate-50">
                       {(() => {
-                        const results = getStudentResults(selectedStudent.id);
+                        const results = getStudentResults(selectedStudent.id, selectedTerm, selectedYear);
                         if (results.length === 0) return (
                           <tr>
                             <td colSpan={4} className="px-6 py-12 text-center italic text-slate-400 text-sm font-medium">No audit data available for this candidate.</td>

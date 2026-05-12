@@ -59,6 +59,12 @@ export const Exams = () => {
   const [currentUser] = useState(storageService.getCurrentUser());
   const [db, setDb] = useState(storageService.getDB());
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isReminderModalOpen, setIsReminderModalOpen] = useState(false);
+  const [reminderExam, setReminderExam] = useState<Exam | null>(null);
+  const [reminderEditData, setReminderEditData] = useState({
+    reminderDays: 3,
+    reminderType: 'none' as 'email' | 'in-app' | 'both' | 'none'
+  });
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [selectedExam, setSelectedExam] = useState<Exam | null>(null);
   const [isMarkEntryOpen, setIsMarkEntryOpen] = useState(false);
@@ -142,7 +148,7 @@ export const Exams = () => {
     maxMarks: 100,
     date: new Date().toISOString().split('T')[0],
     reminderDays: 3,
-    reminderType: 'both' as 'email' | 'in-app' | 'both' | 'none'
+    reminderType: 'none' as 'email' | 'in-app' | 'both' | 'none'
   });
 
   // Marks Entry Form
@@ -224,6 +230,27 @@ export const Exams = () => {
 
   const analysisData = getAnalysisData();
   const topPerformers = getTopPerformers();
+
+  const openReminderSettings = (exam: Exam) => {
+    setReminderExam(exam);
+    setReminderEditData({
+      reminderDays: exam.reminderDays || 3,
+      reminderType: exam.reminderType || 'none'
+    });
+    setIsReminderModalOpen(true);
+  };
+
+  const handleSaveReminders = () => {
+    if (!reminderExam) return;
+    const updatedExams = db.exams.map(e => 
+      e.id === reminderExam.id 
+        ? { ...e, ...reminderEditData } 
+        : e
+    );
+    storageService.saveDB({ ...db, exams: updatedExams });
+    setDb({ ...db, exams: updatedExams });
+    setIsReminderModalOpen(false);
+  };
 
   const handleAddExam = (e: React.FormEvent) => {
     e.preventDefault();
@@ -721,7 +748,14 @@ export const Exams = () => {
                             >
                               Results Entry
                             </button>
-                            <button className="p-2 text-slate-400 hover:text-primary transition-colors">
+                            <button 
+                              onClick={() => canManage && openReminderSettings(exam)}
+                              className={cn(
+                                "p-2 transition-colors rounded-lg",
+                                exam.reminderType && exam.reminderType !== 'none' ? "text-primary bg-primary/10" : "text-slate-400 hover:text-primary hover:bg-slate-50"
+                              )}
+                              title="Reminder Settings"
+                            >
                               <Bell size={14} />
                             </button>
                           </div>
@@ -818,6 +852,19 @@ export const Exams = () => {
                         className="flex-1 py-3 text-[10px] uppercase font-bold tracking-widest text-white bg-slate-900 rounded-xl hover:bg-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Entry Form
+                      </button>
+                      <button 
+                        onClick={() => canManage && openReminderSettings(exam)}
+                        disabled={!canManage}
+                        className={cn(
+                          "p-3 border rounded-xl transition-all",
+                          exam.reminderType && exam.reminderType !== 'none' 
+                            ? "text-primary bg-primary/5 border-primary/20" 
+                            : "text-slate-400 bg-slate-50 border-slate-100 hover:text-primary hover:border-primary"
+                        )}
+                        title="Reminder Settings"
+                      >
+                        <Bell size={18} />
                       </button>
                       <button className="p-3 text-slate-400 bg-slate-50 border border-slate-100 rounded-xl hover:text-primary hover:border-primary transition-all">
                         <FileText size={18} />
@@ -1470,54 +1517,46 @@ export const Exams = () => {
                 <button onClick={() => setIsAddModalOpen(false)} className="p-2 text-slate-400 hover:bg-slate-50 rounded-full transition-colors"><X size={20} /></button>
               </div>
               <form onSubmit={handleAddExam} className="p-8 space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Examination Title</label>
-                    <select 
-                      value={newExam.title} 
-                      onChange={e => setNewExam({...newExam, title: e.target.value})}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
-                    >
-                      <option value="CA">Continuous Assessment (CA)</option>
-                      <option value="Mid-Term">Mid-Term</option>
-                      <option value="Terminal">Terminal Exam</option>
-                    </select>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Examination Title</label>
+                      <select 
+                        value={newExam.title} 
+                        onChange={e => setNewExam({...newExam, title: e.target.value})}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+                      >
+                        <option value="CA">Continuous Assessment (CA)</option>
+                        <option value="Mid-Term">Mid-Term</option>
+                        <option value="Terminal">Terminal Exam</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Max Score</label>
+                      <input 
+                        type="number" 
+                        value={newExam.maxMarks}
+                        onChange={e => setNewExam({...newExam, maxMarks: Number(e.target.value)})}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 outline-none text-sm font-medium"
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Academic Year</label>
-                    <input 
-                      type="number" 
-                      value={newExam.year}
-                      onChange={e => setNewExam({...newExam, year: Number(e.target.value)})}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 outline-none text-sm font-medium"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Max Score</label>
-                    <input 
-                      type="number" 
-                      value={newExam.maxMarks}
-                      onChange={e => setNewExam({...newExam, maxMarks: Number(e.target.value)})}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 outline-none text-sm font-medium"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Academic Term</label>
-                    <select value={newExam.term} onChange={e => setNewExam({...newExam, term: Number(e.target.value) as 1|2})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 outline-none text-sm font-medium">
-                      <option value={1}>Term I</option>
-                      <option value={2}>Term II</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Academic Year</label>
-                    <input 
-                      type="number" 
-                      value={newExam.year}
-                      onChange={e => setNewExam({...newExam, year: Number(e.target.value)})}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 outline-none text-sm font-medium"
-                    />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Academic Term</label>
+                      <select value={newExam.term} onChange={e => setNewExam({...newExam, term: Number(e.target.value) as 1|2})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 outline-none text-sm font-medium">
+                        <option value={1}>Term I</option>
+                        <option value={2}>Term II</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Academic Year</label>
+                      <input 
+                        type="number" 
+                        value={newExam.year}
+                        onChange={e => setNewExam({...newExam, year: Number(e.target.value)})}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 outline-none text-sm font-medium"
+                      />
+                    </div>
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Subject Registry</label>
@@ -1526,7 +1565,6 @@ export const Exams = () => {
                       {SCHOOL_CONFIG.defaultSubjects.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </div>
-                </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Assessment Date</label>
                   <input 
@@ -1546,43 +1584,79 @@ export const Exams = () => {
                 </div>
 
                 <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Bell size={14} className="text-primary" />
-                    <h4 className="text-[10px] font-bold text-slate-900 uppercase tracking-widest">Assessment Reminders</h4>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Bell size={14} className="text-primary" />
+                      <h4 className="text-[10px] font-bold text-slate-900 uppercase tracking-widest">Assessment Reminders</h4>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={cn(
+                        "text-[8px] font-black uppercase tracking-widest",
+                        newExam.reminderType !== 'none' ? "text-primary" : "text-slate-400"
+                      )}>
+                        {newExam.reminderType !== 'none' ? 'Active' : 'Muted'}
+                      </span>
+                      <button 
+                        type="button"
+                        onClick={() => setNewExam(prev => ({
+                          ...prev,
+                          reminderType: prev.reminderType === 'none' ? 'both' : 'none'
+                        }))}
+                        className={cn(
+                          "w-10 h-5 rounded-full relative transition-all duration-300",
+                          newExam.reminderType !== 'none' ? "bg-primary" : "bg-slate-300"
+                        )}
+                      >
+                        <div className={cn(
+                          "absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all duration-300 shadow-sm",
+                          newExam.reminderType !== 'none' ? "left-5.5" : "left-0.5"
+                        )} />
+                      </button>
+                    </div>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Reminder Interval</label>
-                      <select 
-                        value={newExam.reminderDays}
-                        onChange={e => setNewExam({...newExam, reminderDays: Number(e.target.value)})}
-                        className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 outline-none text-xs font-bold"
+                  <AnimatePresence>
+                    {newExam.reminderType !== 'none' && (
+                      <motion.div 
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="space-y-4 overflow-hidden"
                       >
-                        <option value={1}>1 Day Before</option>
-                        <option value={3}>3 Days Before</option>
-                        <option value={7}>1 Week Before</option>
-                        <option value={14}>2 Weeks Before</option>
-                        <option value={30}>1 Month Before</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Notification Protocol</label>
-                      <select 
-                        value={newExam.reminderType} 
-                        onChange={e => setNewExam({...newExam, reminderType: e.target.value as any})}
-                        className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 outline-none text-xs font-bold"
-                      >
-                        <option value="none">Disabled</option>
-                        <option value="email">Email Only</option>
-                        <option value="in-app">In-App Only</option>
-                        <option value="both">✨ Both (Premium Upgrade)</option>
-                      </select>
-                    </div>
-                  </div>
-                  <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest italic">
-                    * Automated reminders will be dispatched to teachers, students, and parents.
-                  </p>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Reminder Interval</label>
+                            <select 
+                              value={newExam.reminderDays}
+                              onChange={e => setNewExam({...newExam, reminderDays: Number(e.target.value)})}
+                              className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 outline-none text-xs font-bold"
+                            >
+                              <option value={1}>1 Day Before</option>
+                              <option value={3}>3 Days Before</option>
+                              <option value={7}>1 Week Before</option>
+                              <option value={14}>2 Weeks Before</option>
+                              <option value={30}>1 Month Before</option>
+                            </select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Notification Protocol</label>
+                            <select 
+                              value={newExam.reminderType} 
+                              onChange={e => setNewExam({...newExam, reminderType: e.target.value as any})}
+                              className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 outline-none text-xs font-bold"
+                            >
+                              <option value="email">Email Only</option>
+                              <option value="in-app">In-App Only</option>
+                              <option value="both">✨ Both (Premium Upgrade)</option>
+                            </select>
+                          </div>
+                        </div>
+                        <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest italic">
+                          * Automated reminders will be dispatched to teachers, students, and parents.
+                        </p>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
 
                 <div className="pt-6 flex gap-4">
@@ -1716,6 +1790,108 @@ export const Exams = () => {
       </AnimatePresence>
 
       {/* Bulk Import Modal */}
+      <AnimatePresence>
+        {isReminderModalOpen && reminderExam && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsReminderModalOpen(false)} className="fixed inset-0 bg-slate-900/60 z-[60] backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="fixed inset-0 m-auto w-full max-w-md h-fit bg-white z-[70] rounded-2xl shadow-2xl overflow-hidden border border-slate-200">
+              <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-extrabold text-slate-900 uppercase tracking-tight">Reminder Protocol</h3>
+                  <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">{reminderExam.title} - {reminderExam.subjectId}</p>
+                </div>
+                <button onClick={() => setIsReminderModalOpen(false)} className="p-2 text-slate-400 hover:bg-slate-50 rounded-full transition-colors"><X size={20} /></button>
+              </div>
+              <div className="p-8 space-y-6">
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "w-10 h-10 rounded-xl flex items-center justify-center transition-all",
+                      reminderEditData.reminderType !== 'none' ? "bg-primary text-white shadow-lg shadow-primary/20" : "bg-slate-200 text-slate-400"
+                    )}>
+                      <Bell size={20} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-black text-slate-900 uppercase">Enable Reminders</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        Status: <span className={reminderEditData.reminderType !== 'none' ? "text-primary" : "text-slate-400"}>
+                          {reminderEditData.reminderType !== 'none' ? 'ACTIVE' : 'DISABLED'}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setReminderEditData(prev => ({
+                      ...prev,
+                      reminderType: prev.reminderType === 'none' ? 'both' : 'none'
+                    }))}
+                    className={cn(
+                      "w-12 h-6 rounded-full relative transition-all duration-300",
+                      reminderEditData.reminderType !== 'none' ? "bg-primary" : "bg-slate-300"
+                    )}
+                  >
+                    <div className={cn(
+                      "absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-300 shadow-sm",
+                      reminderEditData.reminderType !== 'none' ? "left-7" : "left-1"
+                    )} />
+                  </button>
+                </div>
+
+                <AnimatePresence>
+                  {reminderEditData.reminderType !== 'none' && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }} 
+                      animate={{ opacity: 1, height: 'auto' }} 
+                      exit={{ opacity: 0, height: 0 }}
+                      className="space-y-4 overflow-hidden"
+                    >
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Send Reminder</label>
+                          <select 
+                            value={reminderEditData.reminderDays}
+                            onChange={e => setReminderEditData({...reminderEditData, reminderDays: Number(e.target.value)})}
+                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 outline-none text-xs font-bold"
+                          >
+                            <option value={1}>1 Day Before</option>
+                            <option value={3}>3 Days Before</option>
+                            <option value={7}>1 Week Before</option>
+                            <option value={14}>2 Weeks Before</option>
+                            <option value={30}>1 Month Before</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Reminder Type</label>
+                          <select 
+                            value={reminderEditData.reminderType} 
+                            onChange={e => setReminderEditData({...reminderEditData, reminderType: e.target.value as any})}
+                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 outline-none text-xs font-bold"
+                          >
+                            <option value="email">Email Only</option>
+                            <option value="in-app">In-App Only</option>
+                            <option value="both">✨ Both</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="p-4 bg-primary/5 rounded-xl border border-primary/10">
+                        <p className="text-[9px] text-primary font-bold uppercase tracking-widest leading-relaxed">
+                          Reminders will be automatically dispatched to all candidates and teaching staff {reminderEditData.reminderDays} days prior to {new Date(reminderExam.date).toLocaleDateString()}.
+                        </p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <div className="pt-4 flex gap-4">
+                  <button onClick={() => setIsReminderModalOpen(false)} className="flex-1 py-3 border border-slate-200 text-slate-400 font-bold rounded-xl hover:bg-slate-50 transition-colors uppercase text-[10px] tracking-widest">Cancel</button>
+                  <button onClick={handleSaveReminders} className="flex-1 py-3 bg-primary text-white font-bold rounded-xl shadow-xl shadow-primary/20 hover:bg-primary-dark transition-all uppercase text-[10px] tracking-widest">Update Policy</button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {isBulkImportOpen && (
           <>
