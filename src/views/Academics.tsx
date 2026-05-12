@@ -19,7 +19,14 @@ import {
   BrainCircuit,
   Award,
   BookOpen,
-  PieChart as PieChartIcon
+  PieChart as PieChartIcon,
+  Plus,
+  Edit2,
+  Trash2,
+  Check,
+  X as CloseIcon,
+  BookMarked,
+  ListChecks
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -47,10 +54,93 @@ export const Academics = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClass, setSelectedClass] = useState('all');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [activeTab, setActiveTab] = useState<'audit' | 'curriculum'>('audit');
+  
+  // Subject management state
+  const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
+  const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
+  const [subjectFormData, setSubjectFormData] = useState<Partial<Subject>>({
+    name: '',
+    code: '',
+    levels: [],
+    description: '',
+    learningObjectives: []
+  });
+  const [newObjective, setNewObjective] = useState('');
+
+  const isAdmin = currentUser?.role === 'admin';
 
   useEffect(() => {
     setDb(storageService.getDB());
   }, []);
+
+  const saveSubject = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAdmin) return;
+
+    const newDb = { ...db };
+    if (editingSubject) {
+      newDb.subjects = db.subjects.map(s => 
+        s.id === editingSubject.id ? { ...s, ...subjectFormData } as Subject : s
+      );
+    } else {
+      const newSub: Subject = {
+        id: `sub_${Date.now()}`,
+        name: subjectFormData.name || '',
+        code: subjectFormData.code || '',
+        levels: subjectFormData.levels || [],
+        description: subjectFormData.description,
+        learningObjectives: subjectFormData.learningObjectives
+      };
+      newDb.subjects.push(newSub);
+    }
+
+    storageService.saveDB(newDb);
+    setDb(newDb);
+    setIsSubjectModalOpen(false);
+    setEditingSubject(null);
+  };
+
+  const deleteSubject = (id: string) => {
+    if (!isAdmin || !window.confirm('Delete this subject and all associated curriculum data?')) return;
+    const newDb = { ...db };
+    newDb.subjects = db.subjects.filter(s => s.id !== id);
+    storageService.saveDB(newDb);
+    setDb(newDb);
+  };
+
+  const openSubjectModal = (subject?: Subject) => {
+    if (subject) {
+      setEditingSubject(subject);
+      setSubjectFormData(subject);
+    } else {
+      setEditingSubject(null);
+      setSubjectFormData({
+        name: '',
+        code: '',
+        levels: [],
+        description: '',
+        learningObjectives: []
+      });
+    }
+    setIsSubjectModalOpen(true);
+  };
+
+  const addObjective = () => {
+    if (!newObjective.trim()) return;
+    setSubjectFormData({
+      ...subjectFormData,
+      learningObjectives: [...(subjectFormData.learningObjectives || []), newObjective.trim()]
+    });
+    setNewObjective('');
+  };
+
+  const removeObjective = (index: number) => {
+    setSubjectFormData({
+      ...subjectFormData,
+      learningObjectives: (subjectFormData.learningObjectives || []).filter((_, i) => i !== index)
+    });
+  };
 
   const getStudentResults = (studentId: string) => {
     // Get all results for this student from the top-level results array
@@ -134,7 +224,37 @@ export const Academics = () => {
         </div>
       </div>
 
-      {/* Analytics Overview */}
+      {/* Tabs */}
+      <div className="flex gap-4 border-b border-slate-100 pb-px">
+        <button 
+          onClick={() => setActiveTab('audit')}
+          className={cn(
+            "pb-4 px-2 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative",
+            activeTab === 'audit' ? "text-primary" : "text-slate-400 hover:text-slate-600"
+          )}
+        >
+          Performance Audit
+          {activeTab === 'audit' && (
+            <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-t-full" />
+          )}
+        </button>
+        <button 
+          onClick={() => setActiveTab('curriculum')}
+          className={cn(
+            "pb-4 px-2 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative",
+            activeTab === 'curriculum' ? "text-primary" : "text-slate-400 hover:text-slate-600"
+          )}
+        >
+          Curriculum Management
+          {activeTab === 'curriculum' && (
+            <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-t-full" />
+          )}
+        </button>
+      </div>
+
+      {activeTab === 'audit' ? (
+        <>
+          {/* Analytics Overview */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-2xl" />
@@ -236,61 +356,252 @@ export const Academics = () => {
         </div>
       </div>
 
-      {/* Candidate List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {divisionData.map(({ student, stats }) => (
-          <motion.div
-            key={student.id}
-            onClick={() => setSelectedStudent(student)}
-            className="group cursor-pointer bg-white p-5 rounded-3xl border border-slate-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 hover:border-primary/20 transition-all relative overflow-hidden"
-          >
-            {stats !== 'N/A' && (
-              <div className={cn(
-                "absolute top-4 right-4 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest text-white shadow-lg",
-                stats.division === 'I' ? "bg-emerald-600 shadow-emerald-600/20" :
-                stats.division === 'II' ? "bg-blue-600 shadow-blue-600/20" :
-                stats.division === 'III' ? "bg-amber-600 shadow-amber-600/20" :
-                stats.division === 'IV' ? "bg-indigo-600 shadow-indigo-600/20" :
-                "bg-slate-600 shadow-slate-600/20"
-              )}>
-                Div {stats.division}
-              </div>
+          {/* Candidate List */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {divisionData.map(({ student, stats }) => (
+              <motion.div
+                key={student.id}
+                onClick={() => setSelectedStudent(student)}
+                className="group cursor-pointer bg-white p-5 rounded-3xl border border-slate-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 hover:border-primary/20 transition-all relative overflow-hidden"
+              >
+                {stats !== 'N/A' && (
+                  <div className={cn(
+                    "absolute top-4 right-4 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest text-white shadow-lg",
+                    stats.division === 'I' ? "bg-emerald-600 shadow-emerald-600/20" :
+                    stats.division === 'II' ? "bg-blue-600 shadow-blue-600/20" :
+                    stats.division === 'III' ? "bg-amber-600 shadow-amber-600/20" :
+                    stats.division === 'IV' ? "bg-indigo-600 shadow-indigo-600/20" :
+                    "bg-slate-600 shadow-slate-600/20"
+                  )}>
+                    Div {stats.division}
+                  </div>
+                )}
+                
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 font-black text-lg group-hover:bg-primary group-hover:text-white transition-all shadow-inner">
+                    {student.name.split(' ').map(n => n[0]).join('')}
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-slate-900 group-hover:text-primary transition-colors">{student.name}</h4>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{student.admissionNo}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mb-6">
+                   <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Points</p>
+                      <p className="text-lg font-black text-slate-900">{stats !== 'N/A' ? stats.points : '--'}</p>
+                   </div>
+                   <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Avg GPA</p>
+                      <p className="text-lg font-black text-slate-900">{stats !== 'N/A' ? stats.gpa.toFixed(2) : '--'}</p>
+                   </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                   <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{stats !== 'N/A' ? stats.credits : 0} Credits</span>
+                   </div>
+                   <div className="flex items-center gap-1 text-primary group-hover:translate-x-1 transition-transform">
+                      <span className="text-[9px] font-black uppercase tracking-widest">View Audit</span>
+                      <ChevronRight size={14} />
+                   </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </>
+      ) : (
+        <div className="space-y-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Subject Inventory</h3>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Manage core educational modules</p>
+            </div>
+            {isAdmin && (
+              <button 
+                onClick={() => openSubjectModal()}
+                className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl font-bold text-[10px] uppercase tracking-widest shadow-xl shadow-primary/20 hover:bg-primary-dark transition-all"
+              >
+                <Plus size={16} />
+                Register Subject
+              </button>
             )}
-            
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 font-black text-lg group-hover:bg-primary group-hover:text-white transition-all shadow-inner">
-                {student.name.split(' ').map(n => n[0]).join('')}
-              </div>
-              <div>
-                <h4 className="text-sm font-black text-slate-900 group-hover:text-primary transition-colors">{student.name}</h4>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{student.admissionNo}</p>
-              </div>
-            </div>
+          </div>
 
-            <div className="grid grid-cols-2 gap-3 mb-6">
-               <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Points</p>
-                  <p className="text-lg font-black text-slate-900">{stats !== 'N/A' ? stats.points : '--'}</p>
-               </div>
-               <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Avg GPA</p>
-                  <p className="text-lg font-black text-slate-900">{stats !== 'N/A' ? stats.gpa.toFixed(2) : '--'}</p>
-               </div>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {db.subjects.map((subject) => (
+              <div key={subject.id} className="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm hover:shadow-md transition-all group">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-10 h-10 bg-indigo-50 text-primary rounded-xl flex items-center justify-center font-black text-xs">
+                    {subject.code}
+                  </div>
+                  {isAdmin && (
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => openSubjectModal(subject)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-primary transition-colors">
+                        <Edit2 size={14} />
+                      </button>
+                      <button onClick={() => deleteSubject(subject.id)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-red-500 transition-colors">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  )}
+                </div>
 
-            <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-               <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{stats !== 'N/A' ? stats.credits : 0} Credits</span>
-               </div>
-               <div className="flex items-center gap-1 text-primary group-hover:translate-x-1 transition-transform">
-                  <span className="text-[9px] font-black uppercase tracking-widest">View Audit</span>
-                  <ChevronRight size={14} />
-               </div>
-            </div>
-          </motion.div>
-        ))}
-      </div>
+                <h4 className="text-sm font-black text-slate-900 mb-2">{subject.name}</h4>
+                <p className="text-[10px] text-slate-500 font-medium line-clamp-2 mb-4 leading-relaxed">
+                  {subject.description || 'No description provided for this subject module.'}
+                </p>
+
+                <div className="space-y-3 pt-4 border-t border-slate-50">
+                  <div className="flex items-center gap-2">
+                    <BookMarked size={12} className="text-slate-400" />
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Levels: {subject.levels.join(', ')}</span>
+                  </div>
+                  {subject.learningObjectives && subject.learningObjectives.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <ListChecks size={12} className="text-slate-400" />
+                      <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">{subject.learningObjectives.length} Learning Objectives</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Subject Edit Modal */}
+          <AnimatePresence>
+            {isSubjectModalOpen && (
+              <>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsSubjectModalOpen(false)} className="fixed inset-0 bg-slate-900/60 z-[70] backdrop-blur-sm" />
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                  className="fixed inset-0 m-auto w-full max-w-xl h-fit max-h-[90vh] bg-white z-[80] rounded-[40px] shadow-2xl overflow-hidden flex flex-col"
+                >
+                  <form onSubmit={saveSubject} className="flex flex-col h-full">
+                    <div className="p-8 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                      <div>
+                        <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">
+                          {editingSubject ? 'Configure Subject' : 'New Subject Module'}
+                        </h3>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Academic Curriculum Definition</p>
+                      </div>
+                      <button type="button" onClick={() => setIsSubjectModalOpen(false)} className="p-2 hover:bg-white rounded-full transition-all">
+                        <CloseIcon size={20} />
+                      </button>
+                    </div>
+
+                    <div className="p-8 space-y-6 overflow-y-auto">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Subject Name</label>
+                          <input 
+                            required
+                            value={subjectFormData.name}
+                            onChange={e => setSubjectFormData({...subjectFormData, name: e.target.value})}
+                            placeholder="e.g. Physics"
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-primary/5 outline-none text-xs font-bold transition-all"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Subject Code</label>
+                          <input 
+                            required
+                            value={subjectFormData.code}
+                            onChange={e => setSubjectFormData({...subjectFormData, code: e.target.value.toUpperCase()})}
+                            placeholder="e.g. PHYS"
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-primary/5 outline-none text-xs font-bold transition-all uppercase"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Applicable Levels</label>
+                        <div className="flex flex-wrap gap-2">
+                          {SCHOOL_CONFIG.academicLevels.map(lvl => (
+                            <label key={lvl} className={cn(
+                              "px-3 py-2 rounded-xl border text-[9px] font-black uppercase tracking-widest cursor-pointer transition-all",
+                              subjectFormData.levels?.includes(lvl) 
+                                ? "bg-primary border-primary text-white shadow-lg shadow-primary/20" 
+                                : "bg-white border-slate-200 text-slate-400 hover:border-primary/40"
+                            )}>
+                              <input 
+                                type="checkbox"
+                                className="hidden"
+                                checked={subjectFormData.levels?.includes(lvl)}
+                                onChange={e => {
+                                  const current = subjectFormData.levels || [];
+                                  if (e.target.checked) setSubjectFormData({...subjectFormData, levels: [...current, lvl]});
+                                  else setSubjectFormData({...subjectFormData, levels: current.filter(l => l !== lvl)});
+                                }}
+                              />
+                              {lvl}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Module Description</label>
+                        <textarea 
+                          rows={3}
+                          value={subjectFormData.description}
+                          onChange={e => setSubjectFormData({...subjectFormData, description: e.target.value})}
+                          placeholder="Brief overview of the subject content..."
+                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-primary/5 outline-none text-xs font-medium transition-all resize-none"
+                        />
+                      </div>
+
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Learning Objectives</label>
+                        <div className="space-y-2">
+                          {subjectFormData.learningObjectives?.map((obj, i) => (
+                            <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 group/obj">
+                              <span className="text-[10px] font-bold text-slate-600">{obj}</span>
+                              <button type="button" onClick={() => removeObjective(i)} className="text-slate-300 hover:text-red-500 transition-colors">
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <input 
+                            value={newObjective}
+                            onChange={e => setNewObjective(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addObjective())}
+                            placeholder="Add a learning objective..."
+                            className="flex-1 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-[10px] font-bold outline-none focus:border-primary transition-all"
+                          />
+                          <button 
+                            type="button" 
+                            onClick={addObjective}
+                            className="p-2.5 bg-slate-900 text-white rounded-xl hover:bg-black transition-all"
+                          >
+                            <Plus size={18} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-8 bg-white border-t border-slate-100 flex gap-4">
+                      <button type="button" onClick={() => setIsSubjectModalOpen(false)} className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all">
+                        Cancel
+                      </button>
+                      <button type="submit" className="flex-[2] py-4 bg-primary text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-primary/20 hover:bg-primary-dark transition-all flex items-center justify-center gap-2">
+                        <Check size={16} />
+                        Save Configuration
+                      </button>
+                    </div>
+                  </form>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
 
       {/* Audit Detail Modal */}
       <AnimatePresence>

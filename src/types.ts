@@ -91,6 +91,8 @@ export interface Subject {
   name: string;
   code: string;
   levels: AcademicLevel[];
+  description?: string;
+  learningObjectives?: string[];
 }
 
 export interface Exam {
