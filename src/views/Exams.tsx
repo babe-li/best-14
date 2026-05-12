@@ -336,10 +336,11 @@ export const Exams = () => {
           return;
         }
 
-        const [title, termStr, yearStr, classId, subjectName, admissionNo, marksStr] = parts;
+        const [title, termStr, yearStr, classId, subjectName, admissionNo, marksStr, maxMarksStr] = parts;
         const term = Number(termStr);
         const year = Number(yearStr);
         const marks = Number(marksStr);
+        const maxMarks = maxMarksStr ? Number(maxMarksStr) : 100;
         
         if (isNaN(term) || (term !== 1 && term !== 2) || isNaN(year) || isNaN(marks)) {
           errorCount++;
@@ -370,7 +371,7 @@ export const Exams = () => {
             year,
             classId: classId as AcademicLevel,
             subjectId,
-            maxMarks: 100, // Default for bulk import
+            maxMarks: maxMarks,
             date: new Date().toISOString().split('T')[0]
           };
           newExams.push(exam);
@@ -407,10 +408,10 @@ export const Exams = () => {
   };
 
   const downloadBulkTemplate = () => {
-    const csvContent = "exam_title,term,year,class_level,subject_name,admission_no,marks\n" + 
-      "Mid-Term,1,2026,Form 1,Mathematics,S001,85\n" +
-      "Mid-Term,1,2026,Form 1,English,S001,78\n" +
-      "Terminal,1,2026,Form 2,Physics,S005,62";
+    const csvContent = "exam_title,term,year,class_level,subject_name,admission_no,marks,max_marks\n" + 
+      "Mid-Term,1,2026,Form 1,Mathematics,S001,85,100\n" +
+      "Mid-Term,1,2026,Form 1,English,S001,78,100\n" +
+      "Terminal,1,2026,Form 2,Physics,S005,62,100";
     
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -790,6 +791,9 @@ export const Exams = () => {
                         <BookOpen size={20} />
                       </div>
                         <div className="flex gap-2">
+                          <span className="text-[10px] font-bold uppercase tracking-widest bg-emerald-50 text-emerald-600 px-2.5 py-1 rounded">
+                            {exam.maxMarks} Marks
+                          </span>
                           <span className="text-[10px] font-bold uppercase tracking-widest bg-indigo-50 text-primary px-2.5 py-1 rounded">
                             Term {exam.term}, {exam.year}
                           </span>
@@ -1454,6 +1458,15 @@ export const Exams = () => {
                     </select>
                   </div>
                   <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Academic Year</label>
+                    <input 
+                      type="number" 
+                      value={newExam.year}
+                      onChange={e => setNewExam({...newExam, year: Number(e.target.value)})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 outline-none text-sm font-medium"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Max Score</label>
                     <input 
                       type="number" 
@@ -1696,7 +1709,7 @@ export const Exams = () => {
                   <div className="space-y-2">
                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Required Columns:</p>
                     <div className="flex flex-wrap gap-2">
-                      {['exam_title', 'term', 'year', 'class_level', 'subject_name', 'admission_no', 'marks'].map(col => (
+                      {['exam_title', 'term', 'year', 'class_level', 'subject_name', 'admission_no', 'marks', 'max_marks'].map(col => (
                         <span key={col} className={cn("px-2 py-1 border rounded text-[9px] font-black uppercase tracking-tight", col === 'subject_name' ? "bg-primary/10 border-primary/20 text-primary" : "bg-white border-slate-200 text-slate-400")}>{col}</span>
                       ))}
                     </div>

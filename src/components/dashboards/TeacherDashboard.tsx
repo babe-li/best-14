@@ -26,7 +26,12 @@ import {
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer, 
-  Cell 
+  Cell,
+  Radar,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis
 } from 'recharts';
 import { storageService } from '../../services/storageService';
 import { type User, type Student, type Attendance, type Exam } from '../../types';
@@ -172,74 +177,127 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ user }) => {
         </div>
       </div>
 
-      {/* Performance Chart Section */}
-      <div className="bg-white p-8 rounded-[40px] border border-slate-200 shadow-sm space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
-              <BarChart3 size={18} className="text-primary" />
-              Student Progress Velocity
-            </h3>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Average achievement across subjects</p>
+      {/* Subject Analysis Charts */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+        {/* Performance Bar Chart */}
+        <div className="bg-white p-8 rounded-[40px] border border-slate-200 shadow-sm space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
+                <BarChart3 size={18} className="text-primary" />
+                Performance Velocity
+              </h3>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Average achievement across subjects</p>
+            </div>
           </div>
-          <div className="flex gap-2">
-             <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-primary rounded-full" />
-                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Avg Marks</span>
-             </div>
+
+          <div className="h-[300px] w-full">
+            {performanceData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={performanceData} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 900 }}
+                    dy={10}
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 900 }}
+                    dx={-10}
+                  />
+                  <Tooltip 
+                    cursor={{ fill: '#f8fafc' }}
+                    contentStyle={{ 
+                      borderRadius: '16px', 
+                      border: 'none', 
+                      boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)',
+                      padding: '12px'
+                    }}
+                    itemStyle={{ fontSize: '12px', fontWeight: 'bold' }}
+                  />
+                  <Bar 
+                    dataKey="average" 
+                    fill="#5b21b6" 
+                    radius={[8, 8, 0, 0]} 
+                    barSize={40}
+                    animationDuration={1500}
+                  >
+                    {performanceData.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={entry.average >= 75 ? '#5b21b6' : entry.average >= 50 ? '#6366f1' : '#f43f5e'} 
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-100">
+                <TrendingUp size={48} className="text-slate-200 mb-4" />
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Awaiting assessment cycles</p>
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="h-[300px] w-full">
-          {performanceData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={performanceData} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis 
-                  dataKey="name" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 900 }}
-                  dy={10}
-                />
-                <YAxis 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 900 }}
-                  dx={-10}
-                />
-                <Tooltip 
-                  cursor={{ fill: '#f8fafc' }}
-                  contentStyle={{ 
-                    borderRadius: '16px', 
-                    border: 'none', 
-                    boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)',
-                    padding: '12px'
-                  }}
-                  itemStyle={{ fontSize: '12px', fontWeight: 'bold' }}
-                />
-                <Bar 
-                  dataKey="average" 
-                  fill="#5b21b6" 
-                  radius={[8, 8, 0, 0]} 
-                  barSize={40}
-                  animationDuration={1500}
-                >
-                  {performanceData.map((entry, index) => (
-                    <Cell 
-                      key={`cell-${index}`} 
-                      fill={entry.average >= 75 ? '#5b21b6' : entry.average >= 50 ? '#6366f1' : '#f43f5e'} 
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-100">
-               <TrendingUp size={48} className="text-slate-200 mb-4" />
-               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Awaiting assessment cycles for calculation</p>
+        {/* Subject Mastery Radar Chart */}
+        <div className="bg-white p-8 rounded-[40px] border border-slate-200 shadow-sm space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
+                <GraduationCap size={18} className="text-primary" />
+                Subject Mastery Profile
+              </h3>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Multi-dimensional proficiency analysis</p>
             </div>
-          )}
+          </div>
+
+          <div className="h-[300px] w-full">
+            {performanceData.length >= 3 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={performanceData}>
+                  <PolarGrid stroke="#f1f5f9" />
+                  <PolarAngleAxis 
+                    dataKey="name" 
+                    tick={{ fill: '#64748b', fontSize: 10, fontWeight: 800 }}
+                  />
+                  <PolarRadiusAxis 
+                    angle={30} 
+                    domain={[0, 100]} 
+                    tick={{ fill: '#94a3b8', fontSize: 8 }}
+                    axisLine={false}
+                  />
+                  <Radar
+                    name="Student Avg"
+                    dataKey="average"
+                    stroke="#5b21b6"
+                    fill="#5b21b6"
+                    fillOpacity={0.15}
+                    strokeWidth={3}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      borderRadius: '16px', 
+                      border: 'none', 
+                      boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)',
+                    }}
+                  />
+                </RadarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-100">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-8 text-center leading-relaxed">
+                  {performanceData.length > 0 
+                    ? "Add more subjects to unlock multi-dimensional profile" 
+                    : "Awaiting sufficient subject data"}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
