@@ -424,13 +424,14 @@ export const Academics = () => {
                     <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 40 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                       <XAxis 
-                        dataKey="code" 
+                        dataKey="name" 
                         axisLine={false}
                         tickLine={false}
-                        tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }}
+                        tick={{ fontSize: 8, fontWeight: 800, fill: '#64748b' }}
                         interval={0}
-                        angle={-45}
+                        angle={-35}
                         textAnchor="end"
+                        height={60}
                       />
                       <YAxis 
                         axisLine={false}
