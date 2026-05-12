@@ -84,10 +84,15 @@ export const Tasks = () => {
     const newDb = { ...db };
     if (!newDb.tasks) newDb.tasks = [];
 
+    const percentage = Number(formData.completionPercentage) || 0;
+    const calculatedStatus = percentage === 100 ? 'Completed' : 
+                            percentage > 0 ? 'In Progress' : 'Pending';
+
     if (editingTask) {
       newDb.tasks = newDb.tasks.map(t => t.id === editingTask.id ? {
         ...t,
         ...formData,
+        status: calculatedStatus,
         updatedAt: new Date().toISOString()
       } as Task : t);
     } else {
@@ -96,7 +101,7 @@ export const Tasks = () => {
         title: formData.title || '',
         description: formData.description || '',
         priority: formData.priority || 'Medium',
-        status: 'Pending',
+        status: calculatedStatus,
         dueDate: formData.dueDate || '',
         creatorId: currentUser.id,
         assigneeId: formData.assigneeId || '',
@@ -104,7 +109,7 @@ export const Tasks = () => {
         category: formData.category || 'Academic',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        completionPercentage: 0
+        completionPercentage: percentage
       };
       newDb.tasks.push(newTask);
     }
@@ -120,7 +125,19 @@ export const Tasks = () => {
     newDb.tasks = newDb.tasks.map(t => t.id === taskId ? {
       ...t,
       status,
-      completionPercentage: status === 'Completed' ? 100 : t.completionPercentage,
+      completionPercentage: status === 'Completed' ? 100 : (status === 'In Progress' ? Math.max(t.completionPercentage, 10) : 0),
+      updatedAt: new Date().toISOString()
+    } : t);
+    storageService.saveDB(newDb);
+    setDb(newDb);
+  };
+
+  const updatePercentage = (taskId: string, percentage: number) => {
+    const newDb = { ...db };
+    newDb.tasks = newDb.tasks.map(t => t.id === taskId ? {
+      ...t,
+      completionPercentage: percentage,
+      status: percentage === 100 ? 'Completed' : percentage > 0 ? 'In Progress' : 'Pending',
       updatedAt: new Date().toISOString()
     } : t);
     storageService.saveDB(newDb);
@@ -307,32 +324,57 @@ export const Tasks = () => {
                <div className="space-y-4">
                   <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest text-slate-400">
                      <span>Protocol Status</span>
-                     <span className={task.status === 'Completed' ? "text-emerald-500" : "text-indigo-600"}>{task.status}</span>
+                     <div className="flex items-center gap-2">
+                        <span className="text-slate-900">{task.completionPercentage}%</span>
+                        <span className={task.status === 'Completed' ? "text-emerald-500" : "text-indigo-600"}>{task.status}</span>
+                     </div>
                   </div>
-                  <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                     <motion.div 
-                        initial={{ width: 0 }}
-                        animate={{ width: `${task.completionPercentage}%` }}
-                        className={cn(
-                          "h-full rounded-full transition-all",
-                          task.status === 'Completed' ? "bg-emerald-500" : "bg-primary"
-                        )}
-                     />
+                  <div className="relative group/progress h-4 flex items-center">
+                    <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                       <motion.div 
+                          initial={{ width: 0 }}
+                          animate={{ width: `${task.completionPercentage}%` }}
+                          className={cn(
+                            "h-full rounded-full transition-all",
+                            task.status === 'Completed' ? "bg-emerald-500" : "bg-primary"
+                          )}
+                       />
+                    </div>
+                    <input 
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="5"
+                      value={task.completionPercentage}
+                      onChange={(e) => updatePercentage(task.id, parseInt(e.target.value))}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                    />
                   </div>
                </div>
 
                <div className="mt-8 pt-6 border-t border-slate-50 flex items-center justify-between">
                   <div className="flex items-center gap-4">
                      <div className="flex -space-x-2">
-                        <div className="w-8 h-8 rounded-lg bg-slate-100 border-2 border-white flex items-center justify-center text-[10px] font-black text-slate-500">
-                           {task.creatorId[0]}
+                        <div className="w-8 h-8 rounded-lg bg-slate-100 border-2 border-white flex items-center justify-center text-[10px] font-black text-slate-500" title={`Creator: ${db.users.find(u => u.id === task.creatorId)?.name || 'Unknown'}`}>
+                           {db.users.find(u => u.id === task.creatorId)?.name?.[0] || '?' }
                         </div>
-                        <div className="w-8 h-8 rounded-lg bg-primary/10 border-2 border-white flex items-center justify-center text-[10px] font-black text-primary">
-                           {task.assigneeId[0] || '?' }
+                        <div className={cn(
+                          "w-8 h-8 rounded-lg border-2 border-white flex items-center justify-center text-[10px] font-black",
+                          task.assigneeType === 'student' ? "bg-amber-100 text-amber-600" : "bg-primary/10 text-primary"
+                        )} title={`Assignee: ${task.assigneeType === 'student' ? db.students.find(s => s.id === task.assigneeId)?.name : db.users.find(u => u.id === task.assigneeId)?.name} (${task.assigneeType})`}>
+                           {(task.assigneeType === 'student' 
+                             ? db.students.find(s => s.id === task.assigneeId)?.name?.[0] 
+                             : db.users.find(u => u.id === task.assigneeId)?.name?.[0]) || '?' }
                         </div>
                      </div>
                      <div>
-                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Target Deadline</p>
+                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap overflow-hidden text-ellipsis max-w-[120px]">
+                          Assignee: {
+                            task.assigneeType === 'student' 
+                            ? db.students.find(s => s.id === task.assigneeId)?.name 
+                            : db.users.find(u => u.id === task.assigneeId)?.name || 'Unassigned'
+                          } ({task.assigneeType})
+                        </p>
                         <p className="text-[10px] font-black text-slate-900">{task.dueDate}</p>
                      </div>
                   </div>
@@ -458,18 +500,38 @@ export const Tasks = () => {
                    </div>
                    <div className="space-y-1.5">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Assignee</label>
+                      <div className="flex gap-2 p-1 bg-slate-100 rounded-xl mb-2">
+                        {(['staff', 'student'] as const).map(type => (
+                          <button
+                            key={type}
+                            type="button"
+                            onClick={() => setFormData({...formData, assigneeType: type, assigneeId: ''})}
+                            className={cn(
+                              "flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
+                              (formData.assigneeType === type || (type === 'staff' && formData.assigneeType === 'teacher')) 
+                                ? "bg-white text-slate-900 shadow-sm" 
+                                : "text-slate-400"
+                            )}
+                          >
+                            {type}
+                          </button>
+                        ))}
+                      </div>
                       <select 
                         value={formData.assigneeId}
                         onChange={(e) => setFormData({...formData, assigneeId: e.target.value})}
                         className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none text-sm font-bold"
                       >
                          <option value="">Select Assignee</option>
-                         {db.users.filter(u => u.id !== currentUser?.id).map(u => (
-                           <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
-                         ))}
-                         {db.students.map(s => (
-                           <option key={s.id} value={s.id}>{s.name} (Student)</option>
-                         ))}
+                         {formData.assigneeType === 'student' ? (
+                           db.students.map(s => (
+                             <option key={s.id} value={s.id}>{s.name} (ADM: {s.admissionNo})</option>
+                           ))
+                         ) : (
+                           db.users.filter(u => u.role !== 'student' && u.role !== 'parent').map(u => (
+                             <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                           ))
+                         )}
                       </select>
                    </div>
                 </div>
