@@ -20,7 +20,11 @@ import {
   BookOpen,
   ArrowRight,
   MoreVertical,
-  Download
+  Download,
+  Upload,
+  FileDown,
+  AlertTriangle,
+  Check
 } from 'lucide-react';
 import { storageService } from '../services/storageService';
 import { type TimetableEntry, type Class, type Subject, type User as UserType } from '../types';
@@ -34,6 +38,9 @@ export const Timetable = () => {
   const [currentUser] = useState(storageService.getCurrentUser());
   const [selectedClass, setSelectedClass] = useState<string>(db.classes[0]?.id || '');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [importSuccess, setImportSuccess] = useState<number>(0);
   const [editingEntry, setEditingEntry] = useState<TimetableEntry | null>(null);
   const [formData, setFormData] = useState<Partial<TimetableEntry>>({
     day: 'Monday',
@@ -54,6 +61,104 @@ export const Timetable = () => {
   }, [db.classes, selectedClass]);
 
   const generateId = () => Math.random().toString(36).substr(2, 9);
+
+  const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      const lines = content.split('\n');
+      const headers = lines[0].toLowerCase().split(',').map(h => h.trim());
+      
+      const newEntries: TimetableEntry[] = [];
+      const errors: string[] = [];
+      let successCount = 0;
+
+      // Column mapping
+      const dayIdx = headers.indexOf('day');
+      const startIdx = headers.indexOf('start_time');
+      const endIdx = headers.indexOf('end_time');
+      const subjectIdx = headers.indexOf('subject_code');
+      const teacherIdx = headers.indexOf('teacher_name');
+      const roomIdx = headers.indexOf('room');
+
+      if (dayIdx === -1 || startIdx === -1 || endIdx === -1 || subjectIdx === -1) {
+        setImportErrors(['Missing required columns: day, start_time, end_time, subject_code']);
+        return;
+      }
+
+      for (let i = 1; i < lines.length; i++) {
+        if (!lines[i].trim()) continue;
+        const parts = lines[i].split(',').map(p => p.trim());
+        const day = parts[dayIdx];
+        const start = parts[startIdx];
+        const end = parts[endIdx];
+        const subCode = parts[subjectIdx];
+        const teacherName = parts[teacherIdx];
+        const room = parts[roomIdx] || '';
+
+        // Validation
+        if (!DAYS.includes(day as any)) {
+          errors.push(`Line ${i + 1}: Invalid day "${day}"`);
+          continue;
+        }
+
+        const subject = db.subjects.find(s => s.code === subCode);
+        if (!subject) {
+          errors.push(`Line ${i + 1}: Subject code "${subCode}" not found`);
+          continue;
+        }
+
+        let teacherId = '';
+        if (teacherName) {
+          const teacher = db.users.find(u => u.name.toLowerCase() === teacherName.toLowerCase());
+          if (teacher) teacherId = teacher.id;
+        }
+
+        newEntries.push({
+          id: generateId(),
+          day: day as any,
+          startTime: start,
+          endTime: end,
+          subjectId: subject.id,
+          teacherId: teacherId,
+          classId: selectedClass,
+          room: room
+        });
+        successCount++;
+      }
+
+      if (errors.length > 0) {
+        setImportErrors(errors);
+      } else {
+        const newDb = { ...db };
+        newDb.timetable = [...(newDb.timetable || []), ...newEntries];
+        storageService.saveDB(newDb);
+        setDb(newDb);
+        setImportSuccess(successCount);
+        setTimeout(() => {
+          setIsImportModalOpen(false);
+          setImportSuccess(0);
+        }, 2000);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const downloadTemplate = () => {
+    const csvContent = "day,start_time,end_time,subject_code,teacher_name,room\n" + 
+      "Monday,08:00,08:40,MATH,John Teacher,Room 101\n" +
+      "Tuesday,09:00,09:40,PHYS,Sarah Instructor,Lab 1";
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `timetable_template_${selectedClass}.csv`;
+    a.click();
+  };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,13 +247,22 @@ export const Timetable = () => {
           </select>
 
           {canManage && (
-            <button 
-              onClick={() => setIsAddModalOpen(true)}
-              className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:bg-primary-dark transition-all active:scale-95"
-            >
-              <Plus size={16} />
-              Add Entry
-            </button>
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setIsImportModalOpen(true)}
+                className="flex items-center gap-2 bg-white text-slate-600 border border-slate-200 px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-slate-50 transition-all active:scale-95"
+              >
+                <Upload size={16} />
+                Import CSV
+              </button>
+              <button 
+                onClick={() => setIsAddModalOpen(true)}
+                className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:bg-primary-dark transition-all active:scale-95"
+              >
+                <Plus size={16} />
+                Add Entry
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -224,6 +338,98 @@ export const Timetable = () => {
           </div>
         ))}
       </div>
+
+      {/* CSV Import Modal */}
+      <AnimatePresence>
+        {isImportModalOpen && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsImportModalOpen(false)}
+              className="fixed inset-0 bg-slate-900/60 z-[100] backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="fixed inset-0 m-auto w-full max-w-lg h-fit bg-white z-[110] rounded-3xl shadow-2xl overflow-hidden border border-slate-200"
+            >
+              <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <div>
+                  <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-tight">Bulk Import Sessions</h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Populate timetable from CSV</p>
+                </div>
+                <button type="button" onClick={() => setIsImportModalOpen(false)} className="p-2 hover:bg-slate-200/50 rounded-full transition-all">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="p-8 space-y-6">
+                {importSuccess > 0 ? (
+                  <div className="bg-emerald-50 border border-emerald-100 p-6 rounded-2xl flex flex-col items-center justify-center text-center gap-3">
+                    <div className="w-12 h-12 bg-emerald-500 text-white rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                      <Check size={24} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-emerald-600 uppercase tracking-tight">Import Successful!</p>
+                      <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest mt-1">{importSuccess} sessions added to the schedule</p>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="p-6 border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50/50 hover:bg-slate-50 transition-all group flex flex-col items-center justify-center gap-4 text-center">
+                      <div className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center text-slate-400 group-hover:text-primary group-hover:scale-110 transition-all">
+                        <Upload size={24} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-slate-700 uppercase tracking-tight">Drop your CSV here</p>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">or click to browse files</p>
+                      </div>
+                      <input 
+                        type="file" 
+                        accept=".csv"
+                        onChange={handleImportCSV}
+                        className="absolute inset-0 opacity-0 cursor-pointer"
+                      />
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="bg-amber-50 border border-amber-100 p-4 rounded-xl flex items-start gap-3">
+                        <AlertTriangle className="text-amber-500 flex-shrink-0" size={16} />
+                        <div>
+                          <p className="text-[10px] font-black text-amber-700 uppercase tracking-tight">Formatting Guard</p>
+                          <p className="text-[9px] font-bold text-amber-600/80 leading-relaxed mt-1">
+                            Ensure column names strictly match: <span className="font-black">day, start_time, end_time, subject_code, teacher_name, room</span>
+                          </p>
+                        </div>
+                      </div>
+
+                      <button 
+                        onClick={downloadTemplate}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-white border border-slate-200 rounded-xl text-[10px] font-black text-slate-500 uppercase tracking-widest hover:bg-slate-50 transition-all shadow-sm"
+                      >
+                        <FileDown size={14} />
+                        Download CSV Template
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {importErrors.length > 0 && (
+                  <div className="max-h-40 overflow-y-auto space-y-2 p-4 bg-red-50 border border-red-100 rounded-xl">
+                    <p className="text-[10px] font-black text-red-600 uppercase tracking-widest mb-1">Import Errors Detected:</p>
+                    {importErrors.map((err, i) => (
+                      <p key={i} className="text-[9px] font-bold text-red-500">{err}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Add/Edit Modal */}
       <AnimatePresence>
