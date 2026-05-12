@@ -6,10 +6,7 @@
 import { SCHOOL_CONFIG } from '../constants';
 import { type AcademicLevel, type Result } from '../types';
 
-export const getGradeScale = (level: AcademicLevel) => {
-  if (level.startsWith('Standard')) {
-    return SCHOOL_CONFIG.nectaScales.primary;
-  }
+export const getGradeScale = (_level: AcademicLevel) => {
   return SCHOOL_CONFIG.nectaScales.secondary;
 };
 
@@ -20,7 +17,7 @@ export const calculateGrade = (marks: number, level: AcademicLevel) => {
       return item.grade;
     }
   }
-  return level.startsWith('Standard') ? 'E' : 'F';
+  return 'F';
 };
 
 export const calculatePoints = (marks: number, level: AcademicLevel) => {

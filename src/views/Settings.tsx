@@ -435,7 +435,7 @@ export const Settings = () => {
               </div>
             </div>
             <p className="text-xs text-slate-500 leading-relaxed grow font-medium">
-              Initialize the core application state with predefined Tanzanian academic levels (Standard 1–7, Form 1–6) and NECTA-certified grading protocols. This operation resets default structural mappings.
+              Initialize the core application state with predefined Tanzanian academic levels (Form 1–4) and NECTA-certified grading protocols. This operation resets default structural mappings.
             </p>
             <div className="mt-8">
               <button 

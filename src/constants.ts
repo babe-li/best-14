@@ -22,13 +22,6 @@ export const SCHOOL_CONFIG = {
     { grade: 'F', min: 0, max: 29, remark: 'Fail' }
   ],
   nectaScales: {
-    primary: [
-      { grade: 'A', min: 81, max: 100, points: 1, remark: 'Excellent' },
-      { grade: 'B', min: 61, max: 80, points: 2, remark: 'Very Good' },
-      { grade: 'C', min: 41, max: 60, points: 3, remark: 'Average' },
-      { grade: 'D', min: 21, max: 40, points: 4, remark: 'Satisfactory' },
-      { grade: 'E', min: 0, max: 20, points: 5, remark: 'Fail' },
-    ],
     secondary: [
       { grade: 'A', min: 75, max: 100, points: 1, remark: 'Excellent' },
       { grade: 'B', min: 65, max: 74, points: 2, remark: 'Very Good' },
@@ -47,11 +40,7 @@ export const SCHOOL_CONFIG = {
     ]
   },
   academicLevels: [
-    'Pre-Primary',
-    'Standard 1', 'Standard 2', 'Standard 3', 'Standard 4', 
-    'Standard 5', 'Standard 6', 'Standard 7',
-    'Form 1', 'Form 2', 'Form 3', 'Form 4',
-    'Form 5', 'Form 6'
+    'Form 1', 'Form 2', 'Form 3', 'Form 4'
   ] as const,
   defaultSubjects: [
     'Mathematics', 'English', 'Kiswahili', 'Social Studies', 

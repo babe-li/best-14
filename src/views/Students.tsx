@@ -368,7 +368,7 @@ export const Students = () => {
   };
 
   const downloadImportTemplate = () => {
-    const csvContent = "name,gender,dob,class_level,parent_phone\nJuma Ali,Male,2015-05-12,Standard 1,+255700000000";
+    const csvContent = "name,gender,dob,class_level,parent_phone\nJuma Ali,Male,2015-05-12,Form 1,+255700000000";
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');

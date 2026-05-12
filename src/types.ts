@@ -53,10 +53,7 @@ export interface Announcement {
 }
 
 export type AcademicLevel = 
-  | 'Pre-Primary'
-  | 'Standard 1' | 'Standard 2' | 'Standard 3' | 'Standard 4' | 'Standard 5' | 'Standard 6' | 'Standard 7'
-  | 'Form 1' | 'Form 2' | 'Form 3' | 'Form 4'
-  | 'Form 5' | 'Form 6';
+  | 'Form 1' | 'Form 2' | 'Form 3' | 'Form 4';
 
 export interface Class {
   id: string;
