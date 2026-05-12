@@ -33,6 +33,7 @@ export const Tasks = () => {
   const [currentUser] = useState(storageService.getCurrentUser());
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'completed'>('all');
   const [selectedCategory, setSelectedCategory] = useState<TaskCategory | 'all'>('all');
+  const [selectedAssignee, setSelectedAssignee] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -70,11 +71,12 @@ export const Tasks = () => {
                       activeTab === 'pending' ? t.status !== 'Completed' : 
                       t.status === 'Completed';
     const matchesCategory = selectedCategory === 'all' ? true : t.category === selectedCategory;
+    const matchesAssignee = selectedAssignee === 'all' ? true : t.assigneeId === selectedAssignee;
     
     // Visibility: Admins see all, teachers see theirs or what's assigned to them/their students
     const hasAccess = currentUser?.role === 'admin' || t.creatorId === currentUser?.id || t.assigneeId === currentUser?.id;
     
-    return matchesSearch && matchesTab && matchesCategory && hasAccess;
+    return matchesSearch && matchesTab && matchesCategory && matchesAssignee && hasAccess;
   });
 
   const saveTask = (e: React.FormEvent) => {
@@ -230,7 +232,7 @@ export const Tasks = () => {
             />
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
          </div>
-         <div className="flex bg-white p-1.5 rounded-2xl border border-slate-200 w-full lg:w-auto">
+          <div className="flex bg-white p-1.5 rounded-2xl border border-slate-200 w-full lg:w-auto">
             {['all', 'pending', 'completed'].map((tab) => (
               <button
                 key={tab}
@@ -243,8 +245,26 @@ export const Tasks = () => {
                 {tab}
               </button>
             ))}
-         </div>
-      </div>
+          </div>
+          
+          <select 
+            value={selectedAssignee}
+            onChange={(e) => setSelectedAssignee(e.target.value)}
+            className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest outline-none focus:ring-4 focus:ring-primary/5 transition-all w-full lg:w-auto"
+          >
+            <option value="all">Every Assignee</option>
+            <optgroup label="Teachers & Staff">
+              {db.users.filter(u => u.role !== 'student' && u.role !== 'parent').map(u => (
+                <option key={u.id} value={u.id}>{u.name}</option>
+              ))}
+            </optgroup>
+            <optgroup label="Students">
+              {db.students.map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </optgroup>
+          </select>
+        </div>
 
       {/* Category Filter Bar */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
@@ -368,13 +388,22 @@ export const Tasks = () => {
                         </div>
                      </div>
                      <div>
-                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap overflow-hidden text-ellipsis max-w-[120px]">
-                          Assignee: {
-                            task.assigneeType === 'student' 
-                            ? db.students.find(s => s.id === task.assigneeId)?.name 
-                            : db.users.find(u => u.id === task.assigneeId)?.name || 'Unassigned'
-                          } ({task.assigneeType})
-                        </p>
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap overflow-hidden text-ellipsis max-w-[120px]">
+                            {
+                              task.assigneeType === 'student' 
+                              ? db.students.find(s => s.id === task.assigneeId)?.name 
+                              : db.users.find(u => u.id === task.assigneeId)?.name || 'Unassigned'
+                            }
+                          </p>
+                          <span className={cn(
+                            "px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-tighter",
+                            task.assigneeType === 'student' ? "bg-amber-100 text-amber-600" : 
+                            task.assigneeType === 'teacher' ? "bg-primary/10 text-primary" : "bg-slate-100 text-slate-500"
+                          )}>
+                            {task.assigneeType}
+                          </span>
+                        </div>
                         <p className="text-[10px] font-black text-slate-900">{task.dueDate}</p>
                      </div>
                   </div>
@@ -500,15 +529,15 @@ export const Tasks = () => {
                    </div>
                    <div className="space-y-1.5">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Assignee</label>
-                      <div className="flex gap-2 p-1 bg-slate-100 rounded-xl mb-2">
+                       <div className="flex gap-2 p-1 bg-slate-100 rounded-xl mb-2">
                         {(['staff', 'student'] as const).map(type => (
                           <button
                             key={type}
                             type="button"
-                            onClick={() => setFormData({...formData, assigneeType: type, assigneeId: ''})}
+                            onClick={() => setFormData({...formData, assigneeType: type === 'staff' ? 'teacher' : 'student', assigneeId: ''})}
                             className={cn(
                               "flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
-                              (formData.assigneeType === type || (type === 'staff' && formData.assigneeType === 'teacher')) 
+                              (type === 'student' ? formData.assigneeType === 'student' : formData.assigneeType !== 'student') 
                                 ? "bg-white text-slate-900 shadow-sm" 
                                 : "text-slate-400"
                             )}
@@ -519,10 +548,20 @@ export const Tasks = () => {
                       </div>
                       <select 
                         value={formData.assigneeId}
-                        onChange={(e) => setFormData({...formData, assigneeId: e.target.value})}
+                        onChange={(e) => {
+                          const id = e.target.value;
+                          let type: any = formData.assigneeType;
+                          if (id) {
+                            if (formData.assigneeType !== 'student') {
+                              const user = db.users.find(u => u.id === id);
+                              type = user?.role === 'teacher' ? 'teacher' : 'staff';
+                            }
+                          }
+                          setFormData({...formData, assigneeId: id, assigneeType: type});
+                        }}
                         className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none text-sm font-bold"
                       >
-                         <option value="">Select Assignee</option>
+                         <option value="">Select Assignee...</option>
                          {formData.assigneeType === 'student' ? (
                            db.students.map(s => (
                              <option key={s.id} value={s.id}>{s.name} (ADM: {s.admissionNo})</option>

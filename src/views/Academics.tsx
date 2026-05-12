@@ -58,6 +58,8 @@ export const Academics = () => {
   const [selectedResultForFeedback, setSelectedResultForFeedback] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState<'audit' | 'curriculum'>('audit');
   
+  const [viewingSubject, setViewingSubject] = useState<Subject | null>(null);
+  
   // Subject management state
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
   const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
@@ -168,6 +170,40 @@ export const Academics = () => {
     return calculateDivision(results, level);
   };
 
+  const getClassPerformanceData = (level: string) => {
+    const exams = db.exams.filter(e => e.classId === level);
+    const examIds = exams.map(e => e.id);
+    const results = db.results.filter(r => examIds.includes(r.examId));
+
+    const performanceMap = new Map<string, { total: number; count: number }>();
+
+    results.forEach(r => {
+      const exam = exams.find(e => e.id === r.examId);
+      if (exam) {
+        const current = performanceMap.get(exam.subjectId) || { total: 0, count: 0 };
+        performanceMap.set(exam.subjectId, {
+          total: current.total + r.marks,
+          count: current.count + 1
+        });
+      }
+    });
+
+    const data = Array.from(performanceMap.entries()).map(([subjectId, stats]) => {
+      const subject = db.subjects.find(s => s.id === subjectId);
+      return {
+        name: subject?.name || subjectId,
+        average: Math.round(stats.total / stats.count),
+        code: subject?.code || subjectId
+      };
+    }).sort((a, b) => b.average - a.average);
+
+    const classAverage = data.length > 0 
+      ? data.reduce((acc, curr) => acc + curr.average, 0) / data.length 
+      : 0;
+
+    return { data, classAverage };
+  };
+
   const filteredStudents = db.students.filter(s => {
     // Filter by search/class
     const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -258,8 +294,8 @@ export const Academics = () => {
       {activeTab === 'audit' ? (
         <>
           {/* Analytics Overview */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-2xl" />
           <div className="relative z-10 flex flex-col md:flex-row gap-8">
             <div className="flex-1">
@@ -328,6 +364,118 @@ export const Academics = () => {
                  </button>
               </div>
            </div>
+        </div>
+      </div>
+
+      {/* Class Level Performance Analysis */}
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Departmental KPI Audit</h3>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Average performance benchmarks per level</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 mr-4">
+              <div className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Above Avg</span>
+            </div>
+            <div className="flex items-center gap-1.5 mr-4">
+              <div className="w-2 h-2 rounded-full bg-primary" />
+              <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Target Range</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-red-500" />
+              <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Intervention Required</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {(selectedClass === 'all' ? ['Form 1', 'Form 2', 'Form 3', 'Form 4'] : [selectedClass]).map((level) => {
+            const { data, classAverage } = getClassPerformanceData(level);
+            if (data.length === 0) return null;
+
+            return (
+              <motion.div 
+                layout
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                key={level} 
+                className="bg-white p-8 rounded-[40px] border border-slate-200 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all group"
+              >
+                <div className="flex items-center justify-between mb-8">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-slate-900 text-white rounded-2xl flex items-center justify-center font-black text-xs shadow-xl shadow-slate-900/10 italic">
+                      {level.split(' ')[1]}
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-black text-slate-900 uppercase tracking-tight">{level} Academic Pulse</h4>
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Global Benchmark: {Math.round(classAverage)}%</p>
+                    </div>
+                  </div>
+                  <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col items-end">
+                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Subjects Monitored</span>
+                    <span className="text-xs font-black text-slate-900">{data.length} Modules</span>
+                  </div>
+                </div>
+
+                <div className="h-[280px] w-full mt-4">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 40 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis 
+                        dataKey="code" 
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }}
+                        interval={0}
+                        angle={-45}
+                        textAnchor="end"
+                      />
+                      <YAxis 
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fontSize: 9, fontWeight: 900, fill: '#94a3b8' }}
+                        domain={[0, 100]}
+                      />
+                      <Tooltip 
+                        cursor={{ fill: '#f8fafc', radius: 12 }}
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const d = payload[0].payload;
+                            return (
+                              <div className="bg-slate-900 p-4 rounded-2xl border border-white/10 shadow-2xl">
+                                <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1">{d.name}</p>
+                                <p className="text-lg font-black text-white italic">{d.average}% <span className="text-[9px] not-italic text-white/40 normal-case ml-1">Avg Score</span></p>
+                                <div className="mt-2 pt-2 border-t border-white/5">
+                                  <p className="text-[8px] font-bold text-white/60 uppercase tracking-widest">
+                                    {d.average >= classAverage ? 'Above Standard' : 'Requires Review'}
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                      <Bar 
+                        dataKey="average" 
+                        radius={[8, 8, 8, 8]}
+                        barSize={32}
+                      >
+                        {data.map((entry, index) => {
+                          let color = '#3b82f6'; // Target/Blue
+                          if (entry.average > classAverage + 5) color = '#10b981'; // Above/Green
+                          if (entry.average < classAverage - 8) color = '#ef4444'; // Below/Red
+                          return <Cell key={`cell-${index}`} fill={color} />;
+                        })}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </motion.div>
+            );
+          })}
         </div>
       </div>
 
@@ -435,17 +583,35 @@ export const Academics = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {db.subjects.map((subject) => (
-              <div key={subject.id} className="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm hover:shadow-md transition-all group">
-                <div className="flex items-center justify-between mb-4">
+              <div 
+                key={subject.id} 
+                onClick={() => setViewingSubject(subject)}
+                className="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm hover:shadow-md transition-all group cursor-pointer relative overflow-hidden"
+              >
+                <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full -mr-12 -mt-12 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                
+                <div className="flex items-center justify-between mb-4 relative z-10">
                   <div className="w-10 h-10 bg-indigo-50 text-primary rounded-xl flex items-center justify-center font-black text-xs">
                     {subject.code}
                   </div>
                   {isAdmin && (
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => openSubjectModal(subject)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-primary transition-colors">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openSubjectModal(subject);
+                        }} 
+                        className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-primary transition-colors"
+                      >
                         <Edit2 size={14} />
                       </button>
-                      <button onClick={() => deleteSubject(subject.id)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-red-500 transition-colors">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteSubject(subject.id);
+                        }} 
+                        className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-red-500 transition-colors"
+                      >
                         <Trash2 size={14} />
                       </button>
                     </div>
@@ -472,6 +638,106 @@ export const Academics = () => {
               </div>
             ))}
           </div>
+
+          {/* Viewing Subject Details Modal */}
+          <AnimatePresence>
+            {viewingSubject && (
+              <>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setViewingSubject(null)} className="fixed inset-0 bg-slate-900/60 z-[70] backdrop-blur-sm" />
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                  className="fixed inset-0 m-auto w-full max-w-2xl h-fit max-h-[90vh] bg-white z-[80] rounded-[40px] shadow-2xl overflow-hidden flex flex-col"
+                >
+                  <div className="p-8 bg-slate-900 text-white relative">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 rounded-full -mr-32 -mt-32 blur-3xl opacity-50" />
+                    <button onClick={() => setViewingSubject(null)} className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-all">
+                      <CloseIcon size={20} />
+                    </button>
+                    
+                    <div className="relative z-10 flex items-center gap-6">
+                      <div className="w-20 h-20 bg-white/10 backdrop-blur-md rounded-3xl flex items-center justify-center text-2xl font-black border border-white/20 shadow-2xl">
+                        {viewingSubject.code}
+                      </div>
+                      <div>
+                        <h3 className="text-2xl font-black tracking-tight">{viewingSubject.name}</h3>
+                        <p className="text-[10px] font-black text-primary uppercase tracking-[0.3em] mt-1 italic">Subject Curriculum Details</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-8 space-y-8 overflow-y-auto bg-slate-50">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-slate-400">
+                        <FileText size={16} />
+                        <h4 className="text-[10px] font-black uppercase tracking-widest">Description</h4>
+                      </div>
+                      <p className="text-sm text-slate-600 leading-relaxed font-medium bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                        {viewingSubject.description || 'No detailed description available for this subject.'}
+                      </p>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-slate-400">
+                          <ListChecks size={16} />
+                          <h4 className="text-[10px] font-black uppercase tracking-widest">Learning Objectives</h4>
+                        </div>
+                        <span className="px-3 py-1 bg-primary/10 text-primary rounded-lg text-[9px] font-black uppercase tracking-widest">
+                          {viewingSubject.learningObjectives?.length || 0} Objectives
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 gap-3">
+                        {viewingSubject.learningObjectives && viewingSubject.learningObjectives.length > 0 ? (
+                          viewingSubject.learningObjectives.map((obj, i) => (
+                            <motion.div 
+                              initial={{ opacity: 0, x: -10 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: i * 0.05 }}
+                              key={i} 
+                              className="flex items-start gap-4 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm"
+                            >
+                              <div className="w-6 h-6 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <Check size={14} />
+                              </div>
+                              <p className="text-xs font-bold text-slate-700 leading-relaxed">{obj}</p>
+                            </motion.div>
+                          ))
+                        ) : (
+                          <div className="bg-white p-8 rounded-3xl border border-slate-100 text-center">
+                            <p className="text-xs font-bold text-slate-400 italic uppercase tracking-widest">No learning objectives defined yet.</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-4 border-t border-slate-100">
+                      <BookMarked size={14} className="text-slate-400" />
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Applicable Academic Levels:</span>
+                      <div className="flex flex-wrap gap-2">
+                        {viewingSubject.levels.map(lvl => (
+                          <span key={lvl} className="px-2 py-0.5 bg-slate-200 text-slate-600 rounded text-[9px] font-black uppercase tracking-widest">
+                            {lvl}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-8 bg-white border-t border-slate-100">
+                    <button 
+                      onClick={() => setViewingSubject(null)}
+                      className="w-full py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-slate-900/20 hover:bg-black transition-all"
+                    >
+                      Close Overview
+                    </button>
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
 
           {/* Subject Edit Modal */}
           <AnimatePresence>

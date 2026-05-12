@@ -36,7 +36,7 @@ const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
 export const Timetable = () => {
   const [db, setDb] = useState(storageService.getDB());
   const [currentUser] = useState(storageService.getCurrentUser());
-  const [selectedClass, setSelectedClass] = useState<string>(db.classes[0]?.id || '');
+  const [selectedClass, setSelectedClass] = useState<string>('all');
   const [selectedTeacher, setSelectedTeacher] = useState<string>('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -171,6 +171,12 @@ export const Timetable = () => {
         entry.id === editingEntry.id ? { ...entry, ...formData } as TimetableEntry : entry
       );
     } else {
+      const classId = formData.classId || (selectedClass !== 'all' ? selectedClass : '');
+      if (!classId) {
+        alert('Please select a class for this session');
+        return;
+      }
+
       const newEntry: TimetableEntry = {
         id: generateId(),
         day: formData.day || 'Monday',
@@ -178,7 +184,7 @@ export const Timetable = () => {
         endTime: formData.endTime || '08:40',
         subjectId: formData.subjectId || '',
         teacherId: formData.teacherId || '',
-        classId: selectedClass,
+        classId: classId,
         room: formData.room || ''
       };
       newDb.timetable.push(newEntry);
@@ -215,8 +221,8 @@ export const Timetable = () => {
   };
 
   const classTimetable = db.timetable.filter(entry => {
-    const matchesClass = entry.classId === selectedClass;
-    const matchesTeacher = selectedTeacher ? entry.teacherId === selectedTeacher : true;
+    const matchesClass = selectedClass === 'all' || entry.classId === selectedClass;
+    const matchesTeacher = !selectedTeacher || entry.teacherId === selectedTeacher;
     return matchesClass && matchesTeacher;
   });
   
@@ -244,8 +250,9 @@ export const Timetable = () => {
           <select 
             value={selectedClass}
             onChange={(e) => setSelectedClass(e.target.value)}
-            className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-widest outline-none focus:ring-4 focus:ring-primary/5 transition-all"
+            className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-widest outline-none focus:ring-4 focus:ring-primary/5 transition-all outline-none"
           >
+            <option value="all">All Classes</option>
             {db.classes.map(c => (
               <option key={c.id} value={c.id}>{c.name} {c.section}</option>
             ))}
@@ -326,7 +333,14 @@ export const Timetable = () => {
                     )}
                   </div>
 
-                  <h4 className="text-xs font-black text-slate-900 mb-1 truncate">{getSubjectName(entry.subjectId)}</h4>
+                  <h4 className="text-xs font-black text-slate-900 mb-1 truncate flex items-center justify-between">
+                    <span>{getSubjectName(entry.subjectId)}</span>
+                    {selectedClass === 'all' && (
+                      <span className="text-[8px] text-primary bg-primary/5 px-1.5 py-0.5 rounded border border-primary/10">
+                        {db.classes.find(c => c.id === entry.classId)?.name}
+                      </span>
+                    )}
+                  </h4>
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 text-[9px] font-bold text-slate-400">
                       <UserIcon size={10} className="text-slate-300" />
@@ -523,6 +537,21 @@ export const Timetable = () => {
                         className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-tight focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all"
                       />
                     </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Class Assignment</label>
+                    <select 
+                      required
+                      value={formData.classId || (selectedClass !== 'all' ? selectedClass : '')}
+                      onChange={(e) => setFormData({...formData, classId: e.target.value})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-tight focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all"
+                    >
+                      <option value="">Select Class...</option>
+                      {db.classes.map(c => (
+                        <option key={c.id} value={c.id}>{c.name} {c.section}</option>
+                      ))}
+                    </select>
                   </div>
 
                   <div className="space-y-1.5">

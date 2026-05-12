@@ -59,9 +59,10 @@ import {
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { storageService } from '../services/storageService';
-import { type Student, type Class, type User } from '../types';
+import { type Student, type Class, type User, type AcademicLevel } from '../types';
 import { cn, generateId, formatCurrency } from '../lib/utils';
 import { SCHOOL_CONFIG } from '../constants';
+import { calculateDivision } from '../lib/nectaUtils';
 
 export const Students = () => {
   const [students, setStudents] = useState<Student[]>([]);
@@ -942,6 +943,16 @@ export const Students = () => {
                     <div className="flex flex-wrap items-center gap-3">
                       <span className="px-3 py-1 bg-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest border border-white/10">{selectedStudent.admissionNo}</span>
                       <span className="px-3 py-1 bg-primary/20 text-primary-light rounded-xl text-[10px] font-black uppercase tracking-widest border border-primary/20">{selectedStudent.classId} {selectedStudent.section}</span>
+                      {(() => {
+                        const results = db.results.filter(r => r.studentId === selectedStudent.id);
+                        const necta = calculateDivision(results, selectedStudent.classId as AcademicLevel);
+                        if (necta === 'N/A') return null;
+                        return (
+                          <span className="px-3 py-1 bg-amber-500/20 text-amber-400 rounded-xl text-[10px] font-black uppercase tracking-widest border border-amber-500/20">
+                            DIV {necta.division} ({necta.points} Pts)
+                          </span>
+                        );
+                      })()}
                       <span className={cn(
                         "px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest border",
                         selectedStudent.status === 'active' ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/20" : "bg-red-500/20 text-red-400 border-red-500/20"
@@ -1120,35 +1131,39 @@ export const Students = () => {
 
                       <div className="space-y-6">
                         <div className="p-6 bg-white rounded-[32px] border border-slate-100 shadow-sm">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Aggregate GPA</p>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Academic Points</p>
                           <p className="text-3xl font-black text-slate-900 italic tracking-tighter">
                             {(() => {
                               const results = db.results.filter(r => r.studentId === selectedStudent.id);
-                              if (!results.length) return '0.0%';
-                              const avg = results.reduce((acc, r) => acc + r.marks, 0) / results.length;
-                              return `${avg.toFixed(1)}%`;
+                              const necta = calculateDivision(results, selectedStudent.classId as AcademicLevel);
+                              return necta === 'N/A' ? 'N/A' : `${necta.points} pts`;
                             })()}
                           </p>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Best 7 Subjects</p>
                         </div>
                         <div className="p-6 bg-primary/5 rounded-[32px] border border-primary/10 shadow-sm relative overflow-hidden">
                           <div className="absolute top-0 right-0 w-24 h-24 bg-primary/10 rounded-full -mr-12 -mt-12 blur-xl" />
-                          <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-2 relative z-10">Subject Proficiency</p>
-                          <p className="text-sm font-black text-slate-900 uppercase italic relative z-10">
-                            {selectedStudent.metadata?.strongSubject || 'Generalist'}
+                          <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-2 relative z-10">NECTA DIVISION</p>
+                          <p className="text-4xl font-black text-slate-900 italic relative z-10">
+                            {(() => {
+                              const results = db.results.filter(r => r.studentId === selectedStudent.id);
+                              const necta = calculateDivision(results, selectedStudent.classId as AcademicLevel);
+                              return necta === 'N/A' ? '-' : `DIV ${necta.division}`;
+                            })()}
                           </p>
-                          <p className="text-[9px] font-bold text-primary/60 uppercase tracking-widest mt-1 relative z-10">Core Department Strength</p>
+                          <p className="text-[9px] font-bold text-primary/60 uppercase tracking-widest mt-1 relative z-10">Calculated Standing</p>
                         </div>
                         <div className="p-6 bg-black rounded-[32px] shadow-xl text-white relative overflow-hidden">
                           <div className="absolute bottom-0 right-0 w-24 h-24 bg-white/5 rounded-full -mr-12 -mb-12 blur-xl" />
-                          <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2 relative z-10">Honors Standing</p>
+                          <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2 relative z-10">Academic Excellence</p>
                           <p className="text-xl font-black uppercase italic tracking-tight relative z-10">
                             {(() => {
                               const results = db.results.filter(r => r.studentId === selectedStudent.id);
                               if (!results.length) return 'N/A';
                               const avg = results.reduce((acc, r) => acc + r.marks, 0) / results.length;
-                              if (avg >= 80) return 'MAGNA CUM LAUDE';
-                              if (avg >= 70) return 'DISTINCTION';
-                              if (avg >= 60) return 'CREDIT';
+                              if (avg >= 75) return 'DISTINCTION';
+                              if (avg >= 65) return 'VERY GOOD';
+                              if (avg >= 45) return 'CREDIT';
                               return 'PASS';
                             })()}
                           </p>
