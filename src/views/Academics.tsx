@@ -26,7 +26,8 @@ import {
   Check,
   X as CloseIcon,
   BookMarked,
-  ListChecks
+  ListChecks,
+  MessageCircle
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -54,6 +55,7 @@ export const Academics = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClass, setSelectedClass] = useState('all');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [selectedResultForFeedback, setSelectedResultForFeedback] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState<'audit' | 'curriculum'>('audit');
   
   // Subject management state
@@ -151,7 +153,8 @@ export const Academics = () => {
       return {
         ...result,
         subjectName: exam?.subjectId || 'Unknown',
-        level: (exam?.classId || 'Form 4') as AcademicLevel
+        level: (exam?.classId || 'Form 4') as AcademicLevel,
+        subjectCode: db.subjects.find(s => s.id === (exam?.subjectId || ''))?.code || ''
       };
     });
   };
@@ -623,7 +626,10 @@ export const Academics = () => {
               <div className="p-8 bg-slate-900 text-white relative">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 rounded-full -mr-32 -mt-32 blur-3xl opacity-50" />
                 <button 
-                  onClick={() => setSelectedStudent(null)}
+                  onClick={() => {
+                    setSelectedStudent(null);
+                    setSelectedResultForFeedback(null);
+                  }}
                   className="absolute top-6 right-6 w-10 h-10 bg-white/10 hover:bg-white/20 rounded-xl flex items-center justify-center transition-all"
                 >
                   <X />
@@ -719,29 +725,74 @@ export const Academics = () => {
                           const isTop7 = i < 7;
                           
                           return (
-                            <tr key={i} className={cn("hover:bg-slate-50/50 transition-colors", !isTop7 && "opacity-40")}>
-                              <td className="px-6 py-4">
-                                 <div className="flex items-center gap-3">
-                                    {isTop7 && <div className="w-1.5 h-1.5 rounded-full bg-primary" />}
-                                    <span className="text-sm font-bold text-slate-900">{r.subjectName}</span>
-                                    {isTop7 && (
-                                       <span className="text-[8px] font-black text-primary px-1.5 py-0.5 bg-primary/5 rounded border border-primary/10 tracking-widest">CORE</span>
-                                    )}
-                                 </div>
-                              </td>
-                              <td className="px-6 py-4 text-center">
-                                 <span className="text-[10px] font-black text-slate-900">{r.marks}</span>
-                              </td>
-                              <td className="px-6 py-4 text-center">
-                                 <span className={cn(
-                                   "px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest",
-                                   ['A', 'B', 'C'].includes(grade) ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-600"
-                                 )}>{grade}</span>
-                              </td>
-                              <td className="px-6 py-4 text-right">
-                                 <span className="text-sm font-black text-slate-900">{pts}</span>
-                              </td>
-                            </tr>
+                            <React.Fragment key={r.id}>
+                              <tr 
+                                onClick={() => setSelectedResultForFeedback(selectedResultForFeedback?.id === r.id ? null : r)}
+                                className={cn(
+                                  "hover:bg-slate-50/50 transition-colors cursor-pointer", 
+                                  !isTop7 && "opacity-40",
+                                  selectedResultForFeedback?.id === r.id && "bg-slate-50"
+                                )}
+                              >
+                                <td className="px-6 py-4">
+                                   <div className="flex items-center gap-3">
+                                      <div className="flex items-center gap-2">
+                                        {isTop7 && <div className="w-1.5 h-1.5 rounded-full bg-primary" />}
+                                        <span className="text-sm font-bold text-slate-900">{r.subjectName}</span>
+                                        <span className="text-[9px] font-bold text-slate-400">({r.subjectCode})</span>
+                                      </div>
+                                      {isTop7 && (
+                                         <span className="text-[8px] font-black text-primary px-1.5 py-0.5 bg-primary/5 rounded border border-primary/10 tracking-widest uppercase">Core</span>
+                                      )}
+                                      {(r.feedback || r.remarks) && (
+                                        <MessageCircle size={12} className={cn("text-primary/50", selectedResultForFeedback?.id === r.id && "text-primary")} />
+                                      )}
+                                   </div>
+                                </td>
+                                <td className="px-6 py-4 text-center">
+                                   <span className="text-[10px] font-black text-slate-900">{r.marks}</span>
+                                </td>
+                                <td className="px-6 py-4 text-center">
+                                   <span className={cn(
+                                     "px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest",
+                                     ['A', 'B', 'C'].includes(grade) ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-600"
+                                   )}>{grade}</span>
+                                </td>
+                                <td className="px-6 py-4 text-right">
+                                   <span className="text-sm font-black text-slate-900">{pts}</span>
+                                </td>
+                              </tr>
+                              {selectedResultForFeedback?.id === r.id && (
+                                <tr className="bg-slate-50">
+                                  <td colSpan={4} className="px-6 py-4">
+                                    <motion.div 
+                                      initial={{ opacity: 0, y: -10 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm"
+                                    >
+                                      <div className="flex items-start gap-4">
+                                        <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
+                                          <MessageCircle size={16} />
+                                        </div>
+                                        <div>
+                                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Teacher Feedback & Comments</p>
+                                          <p className="text-[11px] font-bold text-slate-900 mb-2">{r.remarks || "No summary remarks provided."}</p>
+                                          {r.feedback ? (
+                                            <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 mt-2">
+                                              <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
+                                                {r.feedback}
+                                              </p>
+                                            </div>
+                                          ) : (
+                                            <p className="text-[10px] text-slate-400 italic">No detailed feedback available for this session.</p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </motion.div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
                           );
                         });
                       })()}

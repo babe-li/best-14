@@ -192,20 +192,22 @@ export const Exams = () => {
     const subjectDataMap = db.exams.reduce((acc, exam) => {
       const results = db.results.filter(r => r.examId === exam.id);
       if (results.length === 0) return acc;
-      const avg = results.reduce((sum, r) => sum + r.marks, 0) / results.length;
       
-      if (acc[exam.subjectId]) {
-        acc[exam.subjectId].total += avg;
-        acc[exam.subjectId].count += 1;
-      } else {
-        acc[exam.subjectId] = { total: avg, count: 1 };
+      if (!acc[exam.subjectId]) {
+        acc[exam.subjectId] = { totalMarks: 0, totalStudents: 0, uniqueStudents: new Set<string>() };
       }
+      
+      acc[exam.subjectId].totalMarks += results.reduce((sum, r) => sum + r.marks, 0);
+      acc[exam.subjectId].totalStudents += results.length;
+      results.forEach(r => acc[exam.subjectId].uniqueStudents.add(r.studentId));
+      
       return acc;
-    }, {} as Record<string, { total: number, count: number }>);
+    }, {} as Record<string, { totalMarks: number, totalStudents: number, uniqueStudents: Set<string> }>);
 
     const subjectPerformance = Object.entries(subjectDataMap).map(([subject, data]) => ({
       subject,
-      score: Math.round(data.total / data.count)
+      score: Math.round(data.totalMarks / data.totalStudents),
+      studentCount: data.uniqueStudents.size
     })).sort((a, b) => b.score - a.score);
 
     const allMarks = db.results.map(r => r.marks);
@@ -936,7 +938,31 @@ export const Exams = () => {
                           tick={{ fontSize: 9, fontWeight: 700, fill: '#64748b' }}
                           width={70}
                         />
-                        <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '10px' }} />
+                        <Tooltip 
+                          cursor={{ fill: '#f8fafc' }} 
+                          contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '10px' }}
+                          content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              const data = payload[0].payload;
+                              return (
+                                <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-xl">
+                                  <p className="text-[10px] font-black text-slate-900 uppercase mb-1 tracking-widest">{data.subject}</p>
+                                  <div className="space-y-1">
+                                    <div className="flex items-center justify-between gap-4">
+                                      <span className="text-[9px] font-bold text-slate-400 uppercase">Avg Score:</span>
+                                      <span className="text-[10px] font-black text-primary">{data.score}%</span>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-4">
+                                      <span className="text-[9px] font-bold text-slate-400 uppercase">Students:</span>
+                                      <span className="text-[10px] font-black text-slate-600">{data.studentCount}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
                         <Bar 
                           dataKey="score" 
                           fill="#4f46e5" 
@@ -1476,13 +1502,22 @@ export const Exams = () => {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Academic Term</label>
                     <select value={newExam.term} onChange={e => setNewExam({...newExam, term: Number(e.target.value) as 1|2})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 outline-none text-sm font-medium">
                       <option value={1}>Term I</option>
                       <option value={2}>Term II</option>
                     </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Academic Year</label>
+                    <input 
+                      type="number" 
+                      value={newExam.year}
+                      onChange={e => setNewExam({...newExam, year: Number(e.target.value)})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 outline-none text-sm font-medium"
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Subject Registry</label>

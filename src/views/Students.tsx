@@ -433,6 +433,23 @@ export const Students = () => {
     a.click();
   };
 
+  const batchGenerateControlNumbers = () => {
+    if (!isAdmin) return;
+    if (!window.confirm('This will regenerate control numbers for all students for the current year. Continue?')) return;
+    
+    const database = storageService.getDB();
+    const updatedStudents = database.students.map(s => ({
+      ...s,
+      controlNumber: storageService.generateControlNumber(s.name),
+      updatedAt: new Date().toISOString()
+    }));
+    
+    storageService.saveDB({ ...database, students: updatedStudents });
+    setStudents(updatedStudents);
+    setDb({ ...database, students: updatedStudents });
+    setUpdatedStudentId('batch');
+  };
+
   const generatePDF = async (studentToPrint?: Student) => {
     setIsExporting(true);
     const doc = new jsPDF('p', 'mm', 'a4');
@@ -551,6 +568,16 @@ export const Students = () => {
           <p className="text-slate-400 text-sm font-medium">Manage admissions, profiles, and class allocations.</p>
         </div>
         <div className="flex gap-2">
+          {isAdmin && (
+            <button 
+              onClick={batchGenerateControlNumbers}
+              className="flex items-center gap-2 bg-slate-100 text-slate-600 px-5 py-2.5 rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all border border-slate-200"
+              title="Sync Control Numbers for the current year"
+            >
+              <RefreshCw size={14} className={cn(updatedStudentId === 'batch' && "animate-spin")} />
+              Sync Codes
+            </button>
+          )}
           {isAdmin && (
             <label className="flex items-center gap-2 bg-slate-900 text-white px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-slate-900/10 hover:bg-black transition-all cursor-pointer">
               <Upload size={16} />

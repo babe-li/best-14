@@ -115,6 +115,7 @@ export interface Result {
   marks: number;
   grade: string; // A, B, C, D, E, F
   remarks: string;
+  feedback?: string;
 }
 
 export interface FeeStructure {

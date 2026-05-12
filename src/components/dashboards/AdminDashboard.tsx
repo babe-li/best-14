@@ -47,6 +47,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
   const [db, setDb] = useState(storageService.getDB());
+  const [subjectPerformance, setSubjectPerformance] = useState<any[]>([]);
   const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
@@ -54,6 +55,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
     setStudents(db.students);
     setPayments(db.payments);
     setExams(db.exams);
+
+    // Calculate Subject Performance
+    const subjectDataMap = db.exams.reduce((acc, exam) => {
+      const results = db.results.filter(r => r.examId === exam.id);
+      if (results.length === 0) return acc;
+      
+      if (!acc[exam.subjectId]) {
+        acc[exam.subjectId] = { totalMarks: 0, totalStudents: 0, uniqueStudents: new Set<string>() };
+      }
+      
+      acc[exam.subjectId].totalMarks += results.reduce((sum, r) => sum + r.marks, 0);
+      acc[exam.subjectId].totalStudents += results.length;
+      results.forEach(r => acc[exam.subjectId].uniqueStudents.add(r.studentId));
+      
+      return acc;
+    }, {} as Record<string, { totalMarks: number, totalStudents: number, uniqueStudents: Set<string> }>);
+
+    const perfData = Object.entries(subjectDataMap).map(([subject, data]) => ({
+      subject,
+      score: Math.round(data.totalMarks / data.totalStudents),
+      studentCount: data.uniqueStudents.size
+    })).sort((a, b) => b.score - a.score).slice(0, 6);
+
+    setSubjectPerformance(perfData);
   }, [db]);
 
   const generateAIInsight = async () => {
@@ -210,6 +235,92 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                <span className="text-[8px] text-emerald-500 font-bold uppercase tracking-widest">Core Active</span>
              </div>
              <Sparkles size={14} className="text-white/10" />
+          </div>
+        </motion.div>
+      </div>
+      
+      {/* Dynamic Academic Insights */}
+      <div className="grid grid-cols-1 gap-8">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden"
+        >
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">Academic Subject Performance</h3>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1 italic">V2.4 Metrics - Global Averages</p>
+            </div>
+            <div className="flex items-center gap-4">
+               <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-primary" />
+                  <span className="text-[9px] font-bold text-slate-400 uppercase">Avg Score</span>
+               </div>
+            </div>
+          </div>
+          
+          <div className="h-[250px] w-full">
+            {subjectPerformance.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={subjectPerformance}>
+                  <defs>
+                    <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#4f46e5" stopOpacity={0.9}/>
+                      <stop offset="100%" stopColor="#4f46e5" stopOpacity={0.6}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis 
+                    dataKey="subject" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#64748b', fontSize: 10, fontWeight: 900 }}
+                    dy={10}
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#64748b', fontSize: 10, fontWeight: 900 }}
+                    domain={[0, 100]}
+                  />
+                  <Tooltip 
+                    cursor={{ fill: '#f8fafc' }}
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div className="bg-slate-900 text-white p-4 rounded-2xl shadow-2xl border border-white/10">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-primary mb-2 border-b border-white/10 pb-2">{data.subject}</p>
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between gap-8">
+                                <span className="text-[9px] font-bold text-white/40 uppercase">Performance:</span>
+                                <span className="text-sm font-black text-white">{data.score}%</span>
+                              </div>
+                              <div className="flex items-center justify-between gap-8">
+                                <span className="text-[9px] font-bold text-white/40 uppercase">Student Base:</span>
+                                <span className="text-sm font-black text-white">{data.studentCount} candidates</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Bar 
+                    dataKey="score" 
+                    fill="url(#barGradient)" 
+                    radius={[8, 8, 4, 4]} 
+                    barSize={40}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-100">
+                <BookOpen size={48} className="text-slate-200 mb-4" />
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Collecting academic data streams...</p>
+              </div>
+            )}
           </div>
         </motion.div>
       </div>
