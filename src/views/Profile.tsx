@@ -24,8 +24,23 @@ import {
   Save,
   CheckCircle2,
   Lock,
-  ChevronRight
+  ChevronRight,
+  TrendingUp,
+  MessageCircle,
+  Clock
 } from 'lucide-react';
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip as RechartsTooltip, 
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  Cell
+} from 'recharts';
 import { storageService } from '../services/storageService';
 import { type User as UserType, type Student } from '../types';
 import { cn } from '../lib/utils';
@@ -34,6 +49,8 @@ import { SCHOOL_CONFIG } from '../constants';
 export const Profile = () => {
   const [user, setUser] = useState<UserType | null>(storageService.getCurrentUser());
   const [studentData, setStudentData] = useState<Student | null>(null);
+  const [results, setResults] = useState<any[]>([]);
+  const [attendance, setAttendance] = useState<any[]>([]);
   const [children, setChildren] = useState<Student[]>([]);
   const [showPassword, setShowPassword] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -43,7 +60,13 @@ export const Profile = () => {
     const db = storageService.getDB();
     if (user?.role === 'student' && user.studentMetadata) {
       const student = db.students.find(s => s.id === user.studentMetadata?.studentId);
-      if (student) setStudentData(student);
+      if (student) {
+        setStudentData(student);
+        const sResults = db.results.filter(r => r.studentId === student.id);
+        const sAttendance = db.attendance.filter(a => a.studentId === student.id);
+        setResults(sResults);
+        setAttendance(sAttendance);
+      }
     }
 
     if (user?.role === 'parent' && user.parentMetadata) {
@@ -287,6 +310,87 @@ export const Profile = () => {
                         </p>
                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Core Academic Pillar</p>
                      </div>
+                  </div>
+               </div>
+
+               {/* Performance Trends in Profile */}
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="p-8 bg-white border border-slate-200 rounded-[32px] shadow-sm">
+                     <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest flex items-center gap-2 mb-8">
+                        <TrendingUp size={14} className="text-primary" />
+                        Performance Trajectory
+                     </h4>
+                     <div className="h-48 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                           <LineChart data={results
+                             .sort((a, b) => {
+                               const db = storageService.getDB();
+                               const examA = db.exams.find(e => e.id === a.examId);
+                               const examB = db.exams.find(e => e.id === b.examId);
+                               return (examA?.date || '').localeCompare(examB?.date || '');
+                             })
+                             .map(r => {
+                               const db = storageService.getDB();
+                               return {
+                                 name: db.exams.find(e => e.id === r.examId)?.title.split(' ')[0] || 'Exam',
+                                 score: r.marks
+                               };
+                             })}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                              <XAxis dataKey="name" hide />
+                              <YAxis hide domain={[0, 100]} />
+                              <RechartsTooltip 
+                                contentStyle={{ backgroundColor: '#0f172a', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '10px' }}
+                              />
+                              <Line type="monotone" dataKey="score" stroke="#4f46e5" strokeWidth={3} dot={{ r: 4, fill: '#4f46e5' }} />
+                           </LineChart>
+                        </ResponsiveContainer>
+                     </div>
+                  </div>
+
+                  <div className="p-8 bg-white border border-slate-200 rounded-[32px] shadow-sm">
+                     <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest flex items-center gap-2 mb-8">
+                        <Clock size={14} className="text-emerald-500" />
+                        Attendance Verification
+                     </h4>
+                     <div className="h-48 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                           <BarChart data={[
+                             { name: 'P', count: attendance.filter(a => a.status === 'present').length },
+                             { name: 'A', count: attendance.filter(a => a.status === 'absent').length },
+                             { name: 'L', count: attendance.filter(a => a.status === 'late').length },
+                           ]}>
+                              <XAxis dataKey="name" hide />
+                              <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                                 <Cell fill="#10b981" />
+                                 <Cell fill="#ef4444" />
+                                 <Cell fill="#f59e0b" />
+                              </Bar>
+                           </BarChart>
+                        </ResponsiveContainer>
+                     </div>
+                  </div>
+               </div>
+
+               {/* Teacher Remarks in Profile */}
+               <div className="bg-white p-8 rounded-[32px] border border-slate-200 shadow-sm">
+                  <h3 className="text-sm font-black text-slate-900 uppercase tracking-[0.2em] mb-6 flex items-center gap-3">
+                     <MessageCircle size={18} className="text-primary" />
+                     Pedagogical Commentary
+                  </h3>
+                  <div className="space-y-4">
+                     {[
+                        { author: 'Mwl. Julius Kambarage', content: 'Remarkable aptitude in problem solving. Keep up the momentum.', date: 'Today' },
+                        { author: 'Mwl. Farida Juma', content: 'Class participation is exceptional this term.', date: '3 days ago' }
+                     ].map((remark, i) => (
+                        <div key={i} className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                           <div className="flex justify-between items-start mb-2">
+                              <p className="text-[10px] font-black text-slate-900 uppercase">{remark.author}</p>
+                              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{remark.date}</p>
+                           </div>
+                           <p className="text-[11px] text-slate-600 font-medium leading-relaxed italic">"{remark.content}"</p>
+                        </div>
+                     ))}
                   </div>
                </div>
             </div>

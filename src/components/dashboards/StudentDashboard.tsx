@@ -19,8 +19,22 @@ import {
   Brain,
   Sparkles,
   Zap,
-  Loader2
+  Loader2,
+  PieChart as PieIcon,
+  BarChart3
 } from 'lucide-react';
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip as RechartsTooltip, 
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  Cell
+} from 'recharts';
 import { storageService } from '../../services/storageService';
 import { aiService, type AIPredictionResult } from '../../services/aiService';
 import { type User, type Student, type Result, type Attendance } from '../../types';
@@ -169,6 +183,103 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user }) => {
                  <p className="text-base lg:text-lg font-black text-premium-gold leading-none">Div I ✨</p>
               </div>
            </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Performance Trends */}
+        <div className="space-y-4">
+          <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+            <TrendingUp size={14} className="text-primary" />
+            Performance Growth Matrix
+          </h3>
+          <div className="bg-white p-8 border border-slate-200 rounded-[2.5rem] shadow-sm">
+             <div className="h-64 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                   <LineChart data={results
+                     .sort((a, b) => {
+                       const examA = db.exams.find(e => e.id === a.examId);
+                       const examB = db.exams.find(e => e.id === b.examId);
+                       return (examA?.date || '').localeCompare(examB?.date || '');
+                     })
+                     .map(r => ({
+                       name: db.exams.find(e => e.id === r.examId)?.title.split(' ')[0] || 'Exam',
+                       score: r.marks
+                     }))}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                      <XAxis 
+                        dataKey="name" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 800 }}
+                        dy={10}
+                      />
+                      <YAxis 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 800 }}
+                        domain={[0, 100]}
+                      />
+                      <RechartsTooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#0f172a', 
+                          border: 'none', 
+                          borderRadius: '12px', 
+                          color: '#fff',
+                          fontSize: '10px',
+                          fontWeight: 'bold',
+                          textTransform: 'uppercase'
+                        }}
+                      />
+                      <Line 
+                        type="monotone" 
+                        dataKey="score" 
+                        stroke="#4f46e5" 
+                        strokeWidth={4} 
+                        dot={{ r: 6, fill: '#4f46e5', strokeWidth: 2, stroke: '#fff' }}
+                      />
+                   </LineChart>
+                </ResponsiveContainer>
+             </div>
+          </div>
+        </div>
+
+        {/* Attendance Breakdown */}
+        <div className="space-y-4">
+          <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+            <BarChart3 size={14} className="text-emerald-500" />
+            Attendance Verification
+          </h3>
+          <div className="bg-white p-8 border border-slate-200 rounded-[2.5rem] shadow-sm">
+             <div className="h-64 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                   <BarChart data={[
+                     { name: 'Present', count: attendance.filter(a => a.status === 'present').length, color: '#10b981' },
+                     { name: 'Absent', count: attendance.filter(a => a.status === 'absent').length, color: '#ef4444' },
+                     { name: 'Late', count: attendance.filter(a => a.status === 'late').length, color: '#f59e0b' },
+                   ]}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                      <XAxis 
+                        dataKey="name" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 800 }}
+                      />
+                      <YAxis 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 800 }}
+                      />
+                      <Bar dataKey="count" radius={[8, 8, 0, 0]}>
+                         {[0, 1, 2].map((entry, index) => (
+                           <Cell key={`cell-${index}`} fill={index === 0 ? '#10b981' : index === 1 ? '#ef4444' : '#f59e0b'} />
+                         ))}
+                      </Bar>
+                      <RechartsTooltip cursor={{fill: 'transparent'}} />
+                   </BarChart>
+                </ResponsiveContainer>
+             </div>
+          </div>
         </div>
       </div>
 

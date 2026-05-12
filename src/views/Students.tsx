@@ -37,8 +37,24 @@ import {
   FlaskConical,
   Calculator,
   BookOpen,
-  LogOut
+  LogOut,
+  MessageCircle,
+  BarChart3
 } from 'lucide-react';
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip as RechartsTooltip, 
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  Cell,
+  PieChart,
+  Pie
+} from 'recharts';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { storageService } from '../services/storageService';
@@ -54,6 +70,16 @@ export const Students = () => {
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [isLedgerModalOpen, setIsLedgerModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isMappingModalOpen, setIsMappingModalOpen] = useState(false);
+  const [importData, setImportData] = useState<string[][]>([]);
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
+  const [columnMapping, setColumnMapping] = useState<Record<string, number>>({
+    name: -1,
+    gender: -1,
+    dob: -1,
+    class_level: -1,
+    parent_phone: -1
+  });
   const [isExporting, setIsExporting] = useState(false);
   const [importStatus, setImportStatus] = useState<{
     total: number;
@@ -268,103 +294,149 @@ export const Students = () => {
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const csvData = event.target?.result as string;
-      const lines = csvData.split('\n');
-      const headers = lines[0].toLowerCase().split(',').map(h => h.trim());
+      const csvContent = event.target?.result as string;
+      const lines = csvContent.split('\n').filter(line => line.trim());
+      if (lines.length < 2) {
+        alert("CSV file must contain at least a header and one data row.");
+        return;
+      }
       
-      const db = storageService.getDB();
-      let successCount = 0;
-      let failedCount = 0;
-      const errors: string[] = [];
-      const newStudentsList: Student[] = [];
-      const newUsersList: User[] = [];
-
-      // Skip header
-      for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) continue;
-
-        const values = line.split(',').map(v => v.trim());
-        const data: any = {};
-        headers.forEach((header, index) => {
-          data[header] = values[index];
-        });
-
-        // Validation
-        const required = ['name', 'gender', 'dob', 'class_level'];
-        const missing = required.filter(f => !data[f]);
-
-        if (missing.length > 0) {
-          failedCount++;
-          errors.push(`Row ${i + 1}: Missing required fields: ${missing.join(', ')}`);
-          continue;
-        }
-
-        if (!['Male', 'Female'].includes(data.gender)) {
-          failedCount++;
-          errors.push(`Row ${i + 1}: Invalid gender "${data.gender}". Must be Male or Female.`);
-          continue;
-        }
-
-        if (!SCHOOL_CONFIG.academicLevels.includes(data.class_level)) {
-          failedCount++;
-          errors.push(`Row ${i + 1}: Invalid class level "${data.class_level}".`);
-          continue;
-        }
-
-        // Create student
-        const student: Student = {
-          id: generateId(),
-          admissionNo: `ADM/${new Date().getFullYear()}/${(db.students.length + newStudentsList.length + 1).toString().padStart(3, '0')}`,
-          name: data.name,
-          dob: data.dob,
-          gender: data.gender as 'Male' | 'Female',
-          classId: data.class_level,
-          section: data.section || 'A',
-          parentId: 'parent-placeholder',
-          feeBalance: 0,
-          controlNumber: generateNameBasedControlNumber(data.name),
-          status: 'active',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-
-        // Create user
-        const studentUser: User = {
-          id: generateId(),
-          name: student.name,
-          email: student.admissionNo,
-          password: student.admissionNo,
-          role: 'student',
-          avatar: student.name.split(' ').map(n => n[0]).join('').toUpperCase(),
-          studentMetadata: {
-            admissionNo: student.admissionNo,
-            studentId: student.id
-          }
-        };
-
-        newStudentsList.push(student);
-        newUsersList.push(studentUser);
-        successCount++;
-      }
-
-      if (newStudentsList.length > 0) {
-        const updatedStudents = [...db.students, ...newStudentsList];
-        const updatedUsers = [...db.users, ...newUsersList];
-        storageService.saveDB({ ...db, students: updatedStudents, users: updatedUsers });
-        setStudents(updatedStudents);
-      }
-
-      setImportStatus({
-        total: lines.length - 1,
-        success: successCount,
-        failed: failedCount,
-        errors
-      });
-      setIsImportModalOpen(true);
+      const headers = lines[0].split(',').map(h => h.trim());
+      const dataRows = lines.slice(1).map(line => line.split(',').map(v => v.trim()));
+      
+      setCsvHeaders(headers);
+      setImportData(dataRows);
+      
+      // Try to auto-map based on common keywords
+      const initialMapping: Record<string, number> = {
+        name: headers.findIndex(h => h.toLowerCase().includes('name')),
+        gender: headers.findIndex(h => h.toLowerCase().includes('gender') || h.toLowerCase() === 'sex'),
+        dob: headers.findIndex(h => h.toLowerCase().includes('birth') || h.toLowerCase().includes('dob') || h.toLowerCase().includes('date')),
+        class_level: headers.findIndex(h => h.toLowerCase().includes('class') || h.toLowerCase().includes('level') || h.toLowerCase().includes('grade')),
+        parent_phone: headers.findIndex(h => h.toLowerCase().includes('parent') || h.toLowerCase().includes('phone') || h.toLowerCase().includes('contact'))
+      };
+      
+      setColumnMapping(initialMapping);
+      setIsMappingModalOpen(true);
     };
     reader.readAsText(file);
     e.target.value = ''; // Reset input
+  };
+
+  const handleMappedImport = () => {
+    // Validate mapping
+    const requiredFields = ['name', 'gender', 'dob', 'class_level'];
+    const unmappedRequested = requiredFields.filter(f => columnMapping[f] === -1);
+    
+    if (unmappedRequested.length > 0) {
+      alert(`Please map the following required fields: ${unmappedRequested.join(', ')}`);
+      return;
+    }
+
+    const db = storageService.getDB();
+    let successCount = 0;
+    let failedCount = 0;
+    const errors: string[] = [];
+    const newStudentsList: Student[] = [];
+    const newUsersList: User[] = [];
+
+    importData.forEach((row, rowIndex) => {
+      const getVal = (field: string) => row[columnMapping[field]] || '';
+      
+      const name = getVal('name');
+      const gender = getVal('gender');
+      const dob = getVal('dob');
+      const classLevel = getVal('class_level');
+      const parentPhone = getVal('parent_phone');
+
+      // Validation
+      if (!name || !gender || !dob || !classLevel) {
+        failedCount++;
+        errors.push(`Row ${rowIndex + 2}: Missing required fields.`);
+        return;
+      }
+
+      const normalizedGender = gender.charAt(0).toUpperCase() + gender.slice(1).toLowerCase();
+      if (normalizedGender !== 'Male' && normalizedGender !== 'Female') {
+        failedCount++;
+        errors.push(`Row ${rowIndex + 2}: Invalid gender "${gender}". Must be Male or Female.`);
+        return;
+      }
+
+      if (!SCHOOL_CONFIG.academicLevels.includes(classLevel)) {
+        failedCount++;
+        errors.push(`Row ${rowIndex + 2}: Invalid class level "${classLevel}".`);
+        return;
+      }
+
+      // Find or create parent if phone is provided
+      let parentId = 'parent-placeholder';
+      if (parentPhone) {
+        const existingParent = db.users.find(u => u.role === 'parent' && u.phone === parentPhone);
+        if (existingParent) {
+          parentId = existingParent.id;
+        } else {
+          // Potentially create an on-the-fly parent or just use placeholder
+          // For now, we'll stick to placeholder or a simple search
+        }
+      }
+
+      // Create student
+      const student: Student = {
+        id: generateId(),
+        admissionNo: `ADM/${new Date().getFullYear()}/${(db.students.length + newStudentsList.length + 1).toString().padStart(3, '0')}`,
+        name: name,
+        dob: dob,
+        gender: normalizedGender as 'Male' | 'Female',
+        classId: classLevel,
+        section: 'A', // Default
+        parentId: parentId,
+        feeBalance: 0,
+        controlNumber: generateNameBasedControlNumber(name),
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        metadata: {
+          imported: true,
+          parentPhone: parentPhone
+        }
+      };
+
+      // Create user
+      const studentUser: User = {
+        id: generateId(),
+        name: student.name,
+        email: student.admissionNo,
+        password: student.admissionNo,
+        role: 'student',
+        avatar: student.name.split(' ').map(n => n[0]).join('').toUpperCase(),
+        studentMetadata: {
+          admissionNo: student.admissionNo,
+          studentId: student.id
+        }
+      };
+
+      newStudentsList.push(student);
+      newUsersList.push(studentUser);
+      successCount++;
+    });
+
+    if (newStudentsList.length > 0) {
+      const updatedStudents = [...db.students, ...newStudentsList];
+      const updatedUsers = [...db.users, ...newUsersList];
+      storageService.saveDB({ ...db, students: updatedStudents, users: updatedUsers });
+      setStudents(updatedStudents);
+    }
+
+    setImportStatus({
+      total: importData.length,
+      success: successCount,
+      failed: failedCount,
+      errors
+    });
+    
+    setIsMappingModalOpen(false);
+    setIsImportModalOpen(true);
   };
 
   const downloadImportTemplate = () => {
@@ -871,16 +943,16 @@ export const Students = () => {
 
               {/* Tabs */}
               <div className="flex items-center gap-2 px-8 py-2 bg-slate-50/50 border-b border-slate-100 overflow-x-auto no-scrollbar">
-                {(['info', 'academic', 'finance', 'attendance'] as const).map(tab => (
+                {(['info', 'academic', 'finance', 'attendance', 'remarks'] as const).map(tab => (
                   <button
                     key={tab}
-                    onClick={() => setActiveTab(tab)}
+                    onClick={() => setActiveTab(tab as any)}
                     className={cn(
                       "px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative",
                       activeTab === tab ? "text-primary" : "text-slate-400 hover:text-slate-600"
                     )}
                   >
-                    {tab}
+                    {tab === 'remarks' ? 'Teacher Remarks' : tab}
                     {activeTab === tab && (
                       <motion.div layoutId="detail-tab" className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-t-full" />
                     )}
@@ -966,32 +1038,118 @@ export const Students = () => {
 
                 {activeTab === 'academic' && (
                   <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <div className="p-6 bg-white rounded-[32px] border border-slate-100 shadow-sm">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Aggregate GPA</p>
-                        <p className="text-3xl font-black text-slate-900 italic">
-                          {(() => {
-                            const results = db.results.filter(r => r.studentId === selectedStudent.id);
-                            if (!results.length) return '0.0%';
-                            const avg = results.reduce((acc, r) => acc + r.marks, 0) / results.length;
-                            return `${avg.toFixed(1)}%`;
-                          })()}
-                        </p>
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      <div className="lg:col-span-2 p-8 bg-white border border-slate-200 rounded-[40px] shadow-sm">
+                        <div className="flex items-center justify-between mb-8">
+                          <div>
+                            <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                              <TrendingUp size={14} className="text-primary" />
+                              Performance Trajectory
+                            </h4>
+                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Cross-Assessment Aggregate Trends</p>
+                          </div>
+                          <div className="flex items-center gap-4">
+                             <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-primary" />
+                                <span className="text-[8px] font-bold text-slate-400 uppercase">Score %</span>
+                             </div>
+                          </div>
+                        </div>
+                        <div className="h-64 w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={db.results
+                              .filter(r => r.studentId === selectedStudent.id)
+                              .sort((a, b) => {
+                                const examA = db.exams.find(e => e.id === a.examId);
+                                const examB = db.exams.find(e => e.id === b.examId);
+                                return (examA?.date || '').localeCompare(examB?.date || '');
+                              })
+                              .map(r => ({
+                                name: db.exams.find(e => e.id === r.examId)?.title.split(' ')[0] || 'Exam',
+                                score: r.marks
+                              }))}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                              <XAxis 
+                                dataKey="name" 
+                                axisLine={false} 
+                                tickLine={false} 
+                                tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 800 }}
+                                dy={10}
+                              />
+                              <YAxis 
+                                axisLine={false} 
+                                tickLine={false} 
+                                tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 800 }}
+                                domain={[0, 100]}
+                              />
+                              <RechartsTooltip 
+                                contentStyle={{ 
+                                  backgroundColor: '#0f172a', 
+                                  border: 'none', 
+                                  borderRadius: '12px', 
+                                  color: '#fff',
+                                  fontSize: '10px',
+                                  fontWeight: 'bold',
+                                  textTransform: 'uppercase'
+                                }}
+                                itemStyle={{ color: '#4f46e5' }}
+                              />
+                              <Line 
+                                type="monotone" 
+                                dataKey="score" 
+                                stroke="#4f46e5" 
+                                strokeWidth={4} 
+                                dot={{ r: 6, fill: '#4f46e5', strokeWidth: 2, stroke: '#fff' }}
+                                activeDot={{ r: 8, strokeWidth: 0 }}
+                              />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
                       </div>
-                      <div className="p-6 bg-primary/5 rounded-[32px] border border-primary/10 shadow-sm">
-                        <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-2">Subject Proficiency</p>
-                        <p className="text-sm font-black text-slate-900 uppercase italic">
-                          {selectedStudent.metadata?.strongSubject || 'Generalist'}
-                        </p>
-                        <p className="text-[9px] font-bold text-primary/60 uppercase tracking-widest mt-1">Core Department Strength</p>
-                      </div>
-                      <div className="p-6 bg-black rounded-[32px] shadow-xl text-white">
-                        <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">Honors Standing</p>
-                        <p className="text-xl font-black uppercase italic tracking-tight">MAGNA CUM LAUDE</p>
+
+                      <div className="space-y-6">
+                        <div className="p-6 bg-white rounded-[32px] border border-slate-100 shadow-sm">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Aggregate GPA</p>
+                          <p className="text-3xl font-black text-slate-900 italic tracking-tighter">
+                            {(() => {
+                              const results = db.results.filter(r => r.studentId === selectedStudent.id);
+                              if (!results.length) return '0.0%';
+                              const avg = results.reduce((acc, r) => acc + r.marks, 0) / results.length;
+                              return `${avg.toFixed(1)}%`;
+                            })()}
+                          </p>
+                        </div>
+                        <div className="p-6 bg-primary/5 rounded-[32px] border border-primary/10 shadow-sm relative overflow-hidden">
+                          <div className="absolute top-0 right-0 w-24 h-24 bg-primary/10 rounded-full -mr-12 -mt-12 blur-xl" />
+                          <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-2 relative z-10">Subject Proficiency</p>
+                          <p className="text-sm font-black text-slate-900 uppercase italic relative z-10">
+                            {selectedStudent.metadata?.strongSubject || 'Generalist'}
+                          </p>
+                          <p className="text-[9px] font-bold text-primary/60 uppercase tracking-widest mt-1 relative z-10">Core Department Strength</p>
+                        </div>
+                        <div className="p-6 bg-black rounded-[32px] shadow-xl text-white relative overflow-hidden">
+                          <div className="absolute bottom-0 right-0 w-24 h-24 bg-white/5 rounded-full -mr-12 -mb-12 blur-xl" />
+                          <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2 relative z-10">Honors Standing</p>
+                          <p className="text-xl font-black uppercase italic tracking-tight relative z-10">
+                            {(() => {
+                              const results = db.results.filter(r => r.studentId === selectedStudent.id);
+                              if (!results.length) return 'N/A';
+                              const avg = results.reduce((acc, r) => acc + r.marks, 0) / results.length;
+                              if (avg >= 80) return 'MAGNA CUM LAUDE';
+                              if (avg >= 70) return 'DISTINCTION';
+                              if (avg >= 60) return 'CREDIT';
+                              return 'PASS';
+                            })()}
+                          </p>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="bg-white rounded-[32px] border border-slate-200 overflow-hidden shadow-sm">
+                    <div className="bg-white rounded-[32px] border border-slate-200 overflow-hidden shadow-sm pt-2">
+                      <div className="px-8 py-4 border-b border-slate-50 flex items-center justify-between">
+                         <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Pedagogical Assessment Log</h4>
+                         <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{db.results.filter(r => r.studentId === selectedStudent.id).length} Entries Captured</span>
+                      </div>
                       <table className="w-full text-left">
                         <thead>
                           <tr className="bg-slate-50 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">
@@ -1005,10 +1163,10 @@ export const Students = () => {
                           {db.results.filter(r => r.studentId === selectedStudent.id).map(result => {
                             const exam = db.exams.find(e => e.id === result.examId);
                             return (
-                              <tr key={result.id} className="text-xs font-bold text-slate-700">
+                              <tr key={result.id} className="text-xs font-bold text-slate-700 group hover:bg-slate-50 transition-colors">
                                 <td className="px-8 py-5 uppercase tracking-tight">{exam?.title || 'Unknown'}</td>
                                 <td className="px-8 py-5 text-slate-400 uppercase tracking-widest text-[10px]">{exam?.subjectId || 'N/A'}</td>
-                                <td className="px-8 py-5 text-center font-black text-slate-900 italic">{result.marks}%</td>
+                                <td className="px-8 py-5 text-center font-black text-slate-900 italic tracking-tighter">{result.marks}%</td>
                                 <td className="px-8 py-5 text-right">
                                   <span className={cn(
                                     "px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border",
@@ -1119,28 +1277,81 @@ export const Students = () => {
 
                 {activeTab === 'attendance' && (
                   <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <div className="p-8 bg-white rounded-[32px] border border-slate-100 shadow-sm flex flex-col items-center">
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Registry Logs</p>
-                        <p className="text-4xl font-black text-slate-900 italic">
-                          {db.attendance?.filter(a => a.studentId === selectedStudent.id).length || 0}
-                        </p>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                      <div className="md:col-span-1 space-y-4">
+                        <div className="p-8 bg-white rounded-[32px] border border-slate-100 shadow-sm flex flex-col items-center">
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Registry Logs</p>
+                          <p className="text-4xl font-black text-slate-900 italic">
+                            {db.attendance?.filter(a => a.studentId === selectedStudent.id).length || 0}
+                          </p>
+                        </div>
+                        <div className="p-8 bg-emerald-50 rounded-[32px] border border-emerald-100 shadow-sm flex flex-col items-center">
+                          <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-2">Presence Index</p>
+                          <p className="text-4xl font-black text-emerald-600 italic">
+                            {Math.round((db.attendance?.filter(a => a.studentId === selectedStudent.id && a.status === 'present').length || 0) / (db.attendance?.filter(a => a.studentId === selectedStudent.id).length || 1) * 100)}%
+                          </p>
+                        </div>
+                        <div className="p-8 bg-red-50 rounded-[32px] border border-red-100 shadow-sm flex flex-col items-center">
+                          <p className="text-[9px] font-black text-red-500 uppercase tracking-widest mb-2">Absence Count</p>
+                          <p className="text-4xl font-black text-red-600 italic">
+                            {db.attendance?.filter(a => a.studentId === selectedStudent.id && a.status === 'absent').length || 0}
+                          </p>
+                        </div>
                       </div>
-                      <div className="p-8 bg-emerald-50 rounded-[32px] border border-emerald-100 shadow-sm flex flex-col items-center">
-                        <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-2">Presence Index</p>
-                        <p className="text-4xl font-black text-emerald-600 italic">
-                          {Math.round((db.attendance?.filter(a => a.studentId === selectedStudent.id && a.status === 'present').length || 0) / (db.attendance?.filter(a => a.studentId === selectedStudent.id).length || 1) * 100)}%
-                        </p>
-                      </div>
-                      <div className="p-8 bg-red-50 rounded-[32px] border border-red-100 shadow-sm flex flex-col items-center">
-                        <p className="text-[9px] font-black text-red-500 uppercase tracking-widest mb-2">Absence Count</p>
-                        <p className="text-4xl font-black text-red-600 italic">
-                          {db.attendance?.filter(a => a.studentId === selectedStudent.id && a.status === 'absent').length || 0}
-                        </p>
+
+                      <div className="md:col-span-3 p-8 bg-white border border-slate-200 rounded-[40px] shadow-sm">
+                         <div className="flex items-center justify-between mb-8">
+                            <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                               <Clock size={14} className="text-primary" />
+                               Monthly Attendance Distribution
+                            </h4>
+                         </div>
+                         <div className="h-64 w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                               <BarChart data={[
+                                 { name: 'Present', count: db.attendance?.filter(a => a.studentId === selectedStudent.id && a.status === 'present').length || 0, color: '#10b981' },
+                                 { name: 'Absent', count: db.attendance?.filter(a => a.studentId === selectedStudent.id && a.status === 'absent').length || 0, color: '#ef4444' },
+                                 { name: 'Late', count: db.attendance?.filter(a => a.studentId === selectedStudent.id && a.status === 'late').length || 0, color: '#f59e0b' },
+                               ]}>
+                                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                                  <XAxis 
+                                    dataKey="name" 
+                                    axisLine={false} 
+                                    tickLine={false} 
+                                    tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 800 }}
+                                  />
+                                  <YAxis 
+                                    axisLine={false} 
+                                    tickLine={false} 
+                                    tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 800 }}
+                                  />
+                                  <RechartsTooltip 
+                                    cursor={{fill: 'transparent'}}
+                                    contentStyle={{ 
+                                      backgroundColor: '#0f172a', 
+                                      border: 'none', 
+                                      borderRadius: '12px', 
+                                      color: '#fff',
+                                      fontSize: '10px',
+                                      fontWeight: 'bold',
+                                      textTransform: 'uppercase'
+                                    }}
+                                  />
+                                  <Bar dataKey="count" radius={[8, 8, 0, 0]}>
+                                     {[0, 1, 2].map((entry, index) => (
+                                       <Cell key={`cell-${index}`} fill={index === 0 ? '#10b981' : index === 1 ? '#ef4444' : '#f59e0b'} />
+                                     ))}
+                                  </Bar>
+                               </BarChart>
+                            </ResponsiveContainer>
+                         </div>
                       </div>
                     </div>
 
-                    <div className="bg-white border border-slate-200 rounded-[32px] overflow-hidden shadow-sm">
+                    <div className="bg-white border border-slate-200 rounded-[32px] overflow-hidden shadow-sm pt-2">
+                       <div className="px-8 py-4 border-b border-slate-50">
+                          <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Observation Window Log</h4>
+                       </div>
                       <table className="w-full text-left">
                         <thead>
                           <tr className="bg-slate-50 text-[9px] font-black text-slate-400 uppercase tracking-widest tracking-[0.2em]">
@@ -1181,6 +1392,93 @@ export const Students = () => {
                           )}
                         </tbody>
                       </table>
+                    </div>
+                  </div>
+                )}
+                {activeTab === 'remarks' && (
+                  <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                       <div className="md:col-span-2 space-y-6">
+                          <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                            <MessageCircle size={14} className="text-primary" />
+                            Pedagogical Counselor Notes
+                          </h4>
+                          <div className="space-y-4">
+                             {[
+                               { author: 'Mwl. Julius Kambarage', content: 'Outstanding progress in advanced calculus. Demonstrated strong abstract reasoning during the terminal assessment.', date: 'Today, 10:30 AM', category: 'Academic' },
+                               { author: 'Mwl. Farida Juma', content: 'Consistent participation in class discussions. Language skills are improving significantly.', date: 'Yesterday', category: 'Conduct' },
+                               { author: 'Class Master', content: 'Regular attendance observed. Leadership qualities emerging within the student council.', date: 'May 08, 2026', category: 'Holistic' }
+                             ].map((remark, idx) => (
+                               <div key={idx} className="p-6 bg-white border border-slate-100 rounded-[32px] shadow-sm hover:border-primary/20 transition-all group">
+                                  <div className="flex justify-between items-start mb-4">
+                                     <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-center text-primary font-black text-xs uppercase">
+                                           {remark.author[0]}
+                                        </div>
+                                        <div>
+                                           <p className="text-[10px] font-black text-slate-900 uppercase tracking-tight">{remark.author}</p>
+                                           <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{remark.date}</p>
+                                        </div>
+                                     </div>
+                                     <span className="px-2 py-1 bg-slate-100 text-slate-500 text-[8px] font-black uppercase tracking-widest rounded-lg">{remark.category}</span>
+                                  </div>
+                                  <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                                     {remark.content}
+                                  </p>
+                               </div>
+                             ))}
+                          </div>
+                          
+                          {isAdmin && (
+                            <div className="p-8 bg-slate-900 rounded-[40px] border border-white/10 shadow-2xl relative overflow-hidden group">
+                               <div className="absolute top-0 right-0 w-32 h-32 bg-primary/20 rounded-full -mr-16 -mt-16 blur-2xl" />
+                               <div className="relative z-10">
+                                  <h5 className="text-sm font-black text-white uppercase tracking-tight mb-4">Append Observation Entry</h5>
+                                  <textarea 
+                                    placeholder="Log professional pedagogical commentary..."
+                                    className="w-full h-24 bg-white/5 border border-white/10 rounded-2xl p-4 text-xs text-white placeholder:text-white/20 outline-none focus:ring-2 focus:ring-primary/50 transition-all font-medium"
+                                  />
+                                  <button className="mt-4 w-full py-3 bg-primary text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-primary-dark transition-all shadow-xl shadow-primary/20">
+                                     Submit Academic Log
+                                  </button>
+                               </div>
+                            </div>
+                          )}
+                       </div>
+
+                       <div className="space-y-6">
+                          <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                             <TrendingUp size={14} className="text-primary" />
+                             Strengths & Focus
+                          </h4>
+                          <div className="p-6 bg-white border border-slate-100 rounded-[32px] shadow-sm space-y-6">
+                             <div>
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Core Competencies</p>
+                                <div className="flex flex-wrap gap-2">
+                                   {['Logical Reasoning', 'Public Speaking', 'Peer Mentoring'].map(skill => (
+                                     <span key={skill} className="px-3 py-1.5 bg-primary/5 text-primary text-[9px] font-black uppercase tracking-widest rounded-xl border border-primary/10">{skill}</span>
+                                   ))}
+                                </div>
+                             </div>
+                             <div>
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Intervention Zones</p>
+                                <div className="flex flex-wrap gap-2">
+                                   {['Time Management', 'Bio-Calculations'].map(skill => (
+                                     <span key={skill} className="px-3 py-1.5 bg-red-50 text-red-500 text-[9px] font-black uppercase tracking-widest rounded-xl border border-red-100">{skill}</span>
+                                   ))}
+                                </div>
+                             </div>
+                          </div>
+
+                          <div className="p-8 bg-gradient-to-br from-indigo-600 to-primary rounded-[40px] text-white shadow-xl shadow-primary/20">
+                             <Trophy size={32} className="text-white/20 mb-4" />
+                             <h4 className="text-lg font-black uppercase tracking-tight leading-none">Holistic <br /> Profile Standing</h4>
+                             <div className="mt-6 flex items-end gap-2">
+                                <span className="text-4xl font-black italic tracking-tighter">Gold</span>
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-white/60 pb-1">Tier Achievement</span>
+                             </div>
+                          </div>
+                       </div>
                     </div>
                   </div>
                 )}
@@ -1652,6 +1950,92 @@ export const Students = () => {
         )}
       </AnimatePresence>
       
+      {/* Column Mapping Modal */}
+      <AnimatePresence>
+        {isMappingModalOpen && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMappingModalOpen(false)}
+              className="fixed inset-0 bg-slate-900/60 z-[120] backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="fixed inset-0 m-auto w-full max-w-lg h-fit max-h-[85vh] bg-white z-[130] rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-slate-200"
+            >
+              <div className="px-8 py-6 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-tight">CSV Column Mapping</h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Map your CSV columns to system fields</p>
+                </div>
+                <button onClick={() => setIsMappingModalOpen(false)} className="p-2 hover:bg-slate-200/50 rounded-full transition-colors">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="p-8 grow overflow-y-auto space-y-6">
+                <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 flex items-start gap-3">
+                  <AlertTriangle size={18} className="text-primary shrink-0 mt-0.5" />
+                  <p className="text-[10px] text-slate-600 font-bold uppercase leading-relaxed tracking-wider">
+                    We've detected these headers in your file. Please confirm the mapping below to ensure data integrity.
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  {[
+                    { key: 'name', label: 'Full Name', required: true },
+                    { key: 'gender', label: 'Gender', required: true },
+                    { key: 'dob', label: 'Date of Birth', required: true },
+                    { key: 'class_level', label: 'Academic Level', required: true },
+                    { key: 'parent_phone', label: 'Parent Contact (Optional)', required: false },
+                  ].map((field) => (
+                    <div key={field.key} className="space-y-1.5">
+                      <div className="flex justify-between items-center px-1">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                          {field.label} {field.required && <span className="text-red-500">*</span>}
+                        </label>
+                        {columnMapping[field.key] !== -1 && (
+                          <span className="text-[9px] font-black text-emerald-500 uppercase tracking-tight italic">Matched</span>
+                        )}
+                      </div>
+                      <select 
+                        value={columnMapping[field.key]}
+                        onChange={(e) => setColumnMapping({...columnMapping, [field.key]: parseInt(e.target.value)})}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-tight focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all"
+                      >
+                        <option value={-1}>-- Unmapped --</option>
+                        {csvHeaders.map((header, idx) => (
+                          <option key={idx} value={idx}>{header}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-4 flex gap-3">
+                  <button 
+                    onClick={() => setIsMappingModalOpen(false)}
+                    className="flex-1 py-3 px-4 bg-white border border-slate-200 text-slate-400 font-bold rounded-xl hover:bg-slate-50 transition-all uppercase text-[10px] tracking-widest"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={handleMappedImport}
+                    className="flex-[2] py-3 px-4 bg-primary text-white font-bold rounded-xl shadow-xl shadow-primary/20 hover:bg-primary-dark transition-all uppercase text-[10px] tracking-widest"
+                  >
+                    Confirm & Start Import
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       {/* Import Status Modal */}
       <AnimatePresence>
         {isImportModalOpen && importStatus && (

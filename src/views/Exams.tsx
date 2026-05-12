@@ -59,9 +59,17 @@ export const Exams = () => {
   const [currentUser] = useState(storageService.getCurrentUser());
   const [db, setDb] = useState(storageService.getDB());
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [selectedExam, setSelectedExam] = useState<Exam | null>(null);
   const [isMarkEntryOpen, setIsMarkEntryOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'calendar' | 'results' | 'grading' | 'analysis' | 'divisions'>('calendar');
+
+  const findSubjectByName = (name: string): string => {
+    // In this app, subjectId seems to be the name itself in many places, 
+    // but we should match against defaultSubjects for validation.
+    const subject = SCHOOL_CONFIG.defaultSubjects.find(s => s.toLowerCase() === name.toLowerCase());
+    return subject || name;
+  };
 
   // Calendar State
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -304,6 +312,114 @@ export const Exams = () => {
     setIsMarkEntryOpen(false);
   };
 
+  const handleBulkCSVImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const csvData = event.target?.result as string;
+      const lines = csvData.split('\n');
+      
+      const newExams = [...db.exams];
+      const newResults = [...db.results];
+      const students = db.students;
+      
+      let importCount = 0;
+      let errorCount = 0;
+
+      lines.forEach((line, index) => {
+        if (index === 0 || !line.trim()) return; // Skip header and empty lines
+        const parts = line.split(',').map(s => s.trim());
+        if (parts.length < 7) {
+          errorCount++;
+          return;
+        }
+
+        const [title, termStr, yearStr, classId, subjectName, admissionNo, marksStr] = parts;
+        const term = Number(termStr);
+        const year = Number(yearStr);
+        const marks = Number(marksStr);
+        
+        if (isNaN(term) || (term !== 1 && term !== 2) || isNaN(year) || isNaN(marks)) {
+          errorCount++;
+          return;
+        }
+
+        const subjectId = findSubjectByName(subjectName);
+        const student = students.find(s => s.admissionNo === admissionNo);
+        if (!student) {
+          errorCount++;
+          return;
+        }
+
+        // Find or create exam
+        let exam = newExams.find(e => 
+          e.title === title && 
+          e.term === term && 
+          e.year === year && 
+          e.classId === classId && 
+          e.subjectId === subjectId
+        );
+
+        if (!exam) {
+          exam = {
+            id: generateId(),
+            title,
+            term: term as 1 | 2,
+            year,
+            classId: classId as AcademicLevel,
+            subjectId,
+            maxMarks: 100, // Default for bulk import
+            date: new Date().toISOString().split('T')[0]
+          };
+          newExams.push(exam);
+        }
+
+        // Add or update result
+        const existingResultIdx = newResults.findIndex(r => r.examId === exam!.id && r.studentId === student.id);
+        const grade = calculateGrade(marks, student.classId as AcademicLevel);
+        
+        const result: Result = {
+          id: existingResultIdx >= 0 ? newResults[existingResultIdx].id : generateId(),
+          examId: exam.id,
+          studentId: student.id,
+          marks,
+          grade,
+          remarks: 'Bulk imported results'
+        };
+
+        if (existingResultIdx >= 0) {
+          newResults[existingResultIdx] = result;
+        } else {
+          newResults.push(result);
+        }
+        importCount++;
+      });
+
+      storageService.saveDB({ ...db, exams: newExams, results: newResults });
+      setDb({ ...db, exams: newExams, results: newResults });
+      setIsBulkImportOpen(false);
+      alert(`Import complete: ${importCount} records updated, ${errorCount} errors skipped.`);
+    };
+    reader.readAsText(file);
+    e.target.value = ''; 
+  };
+
+  const downloadBulkTemplate = () => {
+    const csvContent = "exam_title,term,year,class_level,subject_name,admission_no,marks\n" + 
+      "Mid-Term,1,2026,Form 1,Mathematics,S001,85\n" +
+      "Mid-Term,1,2026,Form 1,English,S001,78\n" +
+      "Terminal,1,2026,Form 2,Physics,S005,62";
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bulk_exams_template.csv`;
+    a.click();
+  };
+
   const handleCSVImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedExam) return;
@@ -417,13 +533,22 @@ export const Exams = () => {
             )}
           </div>
           {canManage && (
-            <button 
-              onClick={() => setIsAddModalOpen(true)}
-              className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:bg-primary-dark transition-all"
-            >
-              <Plus size={16} />
-              Schedule
-            </button>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setIsBulkImportOpen(true)}
+                className="flex items-center gap-2 bg-slate-800 text-white px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-slate-900/20 hover:bg-slate-900 transition-all"
+              >
+                <Upload size={16} />
+                Bulk Import
+              </button>
+              <button 
+                onClick={() => setIsAddModalOpen(true)}
+                className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:bg-primary-dark transition-all"
+              >
+                <Plus size={16} />
+                Schedule
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -1536,6 +1661,91 @@ export const Exams = () => {
                 >
                   Finalize & Encrypt Results
                 </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Bulk Import Modal */}
+      <AnimatePresence>
+        {isBulkImportOpen && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsBulkImportOpen(false)} className="fixed inset-0 bg-slate-900/60 z-[60] backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="fixed inset-0 m-auto w-full max-w-lg h-fit bg-white z-[70] rounded-2xl shadow-2xl overflow-hidden border border-slate-200">
+              <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-extrabold text-slate-900 uppercase tracking-tight">Bulk Academic Import</h3>
+                  <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">Import results for multiple exams</p>
+                </div>
+                <button onClick={() => setIsBulkImportOpen(false)} className="p-2 text-slate-400 hover:bg-slate-50 rounded-full transition-colors"><X size={20} /></button>
+              </div>
+              
+              <div className="p-8 space-y-6">
+                <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-primary/10 text-primary rounded-xl flex items-center justify-center">
+                      <FileText size={20} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-900">CSV Template Guide</p>
+                      <p className="text-[10px] text-slate-400 font-medium">Download and follow the standardized format.</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Required Columns:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {['exam_title', 'term', 'year', 'class_level', 'subject_name', 'admission_no', 'marks'].map(col => (
+                        <span key={col} className={cn("px-2 py-1 border rounded text-[9px] font-black uppercase tracking-tight", col === 'subject_name' ? "bg-primary/10 border-primary/20 text-primary" : "bg-white border-slate-200 text-slate-400")}>{col}</span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button 
+                    onClick={downloadBulkTemplate}
+                    className="w-full py-3 bg-white border border-slate-200 text-slate-900 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+                  >
+                    <FileDown size={14} />
+                    Download Bulk Template
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                   <label className="block">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Upload Results File</span>
+                      <div className="relative group">
+                         <div className="absolute inset-0 bg-primary/5 rounded-2xl border-2 border-dashed border-primary/20 group-hover:bg-primary/10 transition-all" />
+                         <div className="relative p-12 flex flex-col items-center justify-center gap-4 cursor-pointer">
+                            <div className="w-12 h-12 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-center text-primary">
+                               <Upload size={24} />
+                            </div>
+                            <div className="text-center">
+                               <p className="text-xs font-black text-slate-900 uppercase tracking-tight">Click or Drag CSV File</p>
+                               <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Maximum 500 records per upload</p>
+                            </div>
+                            <input 
+                              type="file" 
+                              accept=".csv" 
+                              onChange={handleBulkCSVImport}
+                              className="absolute inset-0 opacity-0 cursor-pointer" 
+                            />
+                         </div>
+                      </div>
+                   </label>
+                </div>
+
+                <div className="pt-2">
+                   <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex items-start gap-4">
+                      <AlertTriangle size={18} className="text-amber-500 shrink-0 mt-0.5" />
+                      <div>
+                         <h4 className="text-[10px] font-bold text-amber-900 uppercase tracking-widest">Protocol Warning</h4>
+                         <p className="text-[9px] text-amber-600 font-bold uppercase tracking-widest opacity-80 mt-1 italic">
+                           Importing results will automatically map them to existing exams or create new ones if no match is found. Subject names must match the official registry.
+                         </p>
+                      </div>
+                   </div>
+                </div>
               </div>
             </motion.div>
           </>
