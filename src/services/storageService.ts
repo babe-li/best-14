@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { type Class, type Student, type User, type FeeStructure, type Payment, type Exam, type Result, type Message, type Attendance, type Task, type Subject, type PermissionRequest } from '../types';
+import { type Class, type Student, type User, type FeeStructure, type Payment, type Exam, type Result, type Message, type Attendance, type Task, type Subject, type PermissionRequest, type Announcement, type TimetableEntry } from '../types';
 import { SCHOOL_CONFIG } from '../constants';
 
 const DB_KEY = 'sms_tanzania_db';
@@ -34,6 +34,7 @@ interface DB {
   settings: SystemSettings;
   notifications: any[];
   permissions: PermissionRequest[];
+  timetable: TimetableEntry[];
 }
 
 const INITIAL_DB: DB = {
@@ -127,7 +128,8 @@ const INITIAL_DB: DB = {
       status: 'Pending',
       createdAt: '2026-05-07T10:00:00Z'
     }
-  ]
+  ],
+  timetable: []
 };
 
 export const storageService = {

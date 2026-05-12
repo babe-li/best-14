@@ -33,6 +33,7 @@ import {
   Upload, 
   FileDown, 
   AlertTriangle, 
+  Trophy,
   Clock, 
   FlaskConical,
   Calculator,
@@ -90,7 +91,7 @@ export const Students = () => {
   const [isPerformanceModalOpen, setIsPerformanceModalOpen] = useState(false);
   const [isAttendanceModalOpen, setIsAttendanceModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'info' | 'academic' | 'finance' | 'attendance'>('info');
+  const [activeTab, setActiveTab] = useState<'info' | 'academic' | 'finance' | 'attendance' | 'remarks'>('info');
   const [attendanceFilters, setAttendanceFilters] = useState({
     status: 'all',
     startDate: '',
@@ -363,7 +364,7 @@ export const Students = () => {
         return;
       }
 
-      if (!SCHOOL_CONFIG.academicLevels.includes(classLevel)) {
+      if (!SCHOOL_CONFIG.academicLevels.includes(classLevel as any)) {
         failedCount++;
         errors.push(`Row ${rowIndex + 2}: Invalid class level "${classLevel}".`);
         return;
@@ -388,7 +389,7 @@ export const Students = () => {
         name: name,
         dob: dob,
         gender: normalizedGender as 'Male' | 'Female',
-        classId: classLevel,
+        classId: classLevel as any,
         section: 'A', // Default
         parentId: parentId,
         feeBalance: 0,

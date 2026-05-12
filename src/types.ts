@@ -81,6 +81,8 @@ export interface Student {
   metadata?: {
     assignedTeacherId?: string;
     strongSubject?: string;
+    imported?: boolean;
+    parentPhone?: string;
   };
 }
 
@@ -178,4 +180,15 @@ export interface Task {
   createdAt: string;
   updatedAt: string;
   completionPercentage: number;
+}
+
+export interface TimetableEntry {
+  id: string;
+  day: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
+  startTime: string; // HH:mm
+  endTime: string; // HH:mm
+  subjectId: string;
+  teacherId: string;
+  classId: string;
+  room?: string;
 }

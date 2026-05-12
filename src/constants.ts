@@ -28,6 +28,13 @@ export const SCHOOL_CONFIG = {
       { grade: 'C', min: 45, max: 64, points: 3, remark: 'Good' },
       { grade: 'D', min: 30, max: 44, points: 4, remark: 'Satisfactory' },
       { grade: 'F', min: 0, max: 29, points: 5, remark: 'Fail' },
+    ],
+    primary: [
+      { grade: 'A', min: 81, max: 100, points: 1, remark: 'Excellent' },
+      { grade: 'B', min: 61, max: 80, points: 2, remark: 'Very Good' },
+      { grade: 'C', min: 41, max: 60, points: 3, remark: 'Good' },
+      { grade: 'D', min: 21, max: 40, points: 4, remark: 'Satisfactory' },
+      { grade: 'E', min: 0, max: 20, points: 5, remark: 'Fail' },
     ]
   },
   divisionPoints: {

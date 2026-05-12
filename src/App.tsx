@@ -23,6 +23,7 @@ import { Academics } from './views/Academics';
 import { Profile } from './views/Profile';
 import { Tasks } from './views/Tasks';
 import { Permissions } from './views/Permissions';
+import { Timetable } from './views/Timetable';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -86,6 +87,8 @@ export default function App() {
         return <Tasks />;
       case 'permissions':
         return <Permissions />;
+      case 'timetable':
+        return <Timetable />;
       case 'profile':
         return <Profile />;
       case 'settings':

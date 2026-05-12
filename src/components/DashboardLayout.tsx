@@ -15,6 +15,7 @@ import {
   LogOut, 
   Menu, 
   X,
+  Table,
   ChevronRight,
   School,
   GraduationCap,
@@ -97,6 +98,7 @@ export const DashboardLayout = ({ children, user, onLogout, activeView, setActiv
     { id: 'messages', label: 'Messages', icon: MessageSquare, badge: 3, roles: ['admin', 'teacher', 'parent', 'student'] },
     { id: 'users', label: 'Staff & Roles', icon: ShieldAlert, roles: ['admin'] },
     { id: 'academics', label: 'Academics', icon: BookOpen, roles: ['admin', 'teacher', 'parent', 'student'] },
+    { id: 'timetable', label: 'Timetable', icon: Table, roles: ['admin', 'teacher', 'student'] },
     { id: 'library', label: 'Library', icon: Library, roles: ['admin', 'teacher', 'student'] },
     { id: 'settings', label: 'Settings', icon: Settings, roles: ['admin'] },
   ];
