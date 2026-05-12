@@ -154,23 +154,6 @@ export const Students = () => {
     }
   }, [updatedStudentId]);
 
-  const generateNameBasedControlNumber = (name: string) => {
-    // Generate a 12-digit control number starting with 99
-    // Incorporates a signature from the student's name
-    const cleanName = name.toUpperCase().replace(/[^A-Z]/g, '');
-    const firstChar = cleanName.charCodeAt(0) || 65;
-    const secondChar = cleanName.charCodeAt(1) || 66;
-    
-    // Signature from name (4 digits)
-    const sig1 = (firstChar % 100).toString().padStart(2, '0');
-    const sig2 = (secondChar % 100).toString().padStart(2, '0');
-    
-    // Remaining 6 digits are random to ensure uniqueness in this demo
-    const randomPart = Math.floor(100000 + Math.random() * 900000).toString();
-    
-    return `99${sig1}${sig2}${randomPart}`;
-  };
-
   const handleAddStudent = (e: React.FormEvent) => {
     e.preventDefault();
     const db = storageService.getDB();
@@ -186,7 +169,7 @@ export const Students = () => {
       section: newStudent.section,
       parentId: newStudent.parentId || 'parent-placeholder',
       feeBalance: 0,
-      controlNumber: generateNameBasedControlNumber(newStudent.name),
+      controlNumber: storageService.generateControlNumber(newStudent.name),
       status: 'active',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -229,7 +212,7 @@ export const Students = () => {
       if (s.id === studentId) {
         return { 
           ...s, 
-          controlNumber: generateNameBasedControlNumber(s.name),
+          controlNumber: storageService.generateControlNumber(s.name),
           updatedAt: new Date().toISOString()
         };
       }
@@ -393,7 +376,7 @@ export const Students = () => {
         section: 'A', // Default
         parentId: parentId,
         feeBalance: 0,
-        controlNumber: generateNameBasedControlNumber(name),
+        controlNumber: storageService.generateControlNumber(name),
         status: 'active',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),

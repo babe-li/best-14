@@ -224,6 +224,21 @@ export const Finance = () => {
     setEditingStructure(null);
   };
 
+  const handleRefreshControlNumbers = () => {
+    if (!window.confirm('Are you sure you want to regenerate control numbers for ALL students for the new academic cycle? This will update their digital payment keys.')) return;
+    
+    const db = storageService.getDB();
+    const updatedStudents = db.students.map(s => ({
+      ...s,
+      controlNumber: storageService.generateControlNumber(s.name),
+      updatedAt: new Date().toISOString()
+    }));
+    
+    storageService.saveDB({ ...db, students: updatedStudents });
+    setStudents(updatedStudents);
+    alert('Academic rollover complete: All control numbers have been refreshed.');
+  };
+
   const addFeeItem = () => {
     if (!newFeeItem.name || !newFeeItem.amount || !editingStructure) return;
     const items = [...editingStructure.items, { name: newFeeItem.name, amount: Number(newFeeItem.amount) }];
@@ -382,6 +397,16 @@ export const Finance = () => {
                 className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
               />
             </div>
+            {isAdmin && (
+              <button 
+                onClick={handleRefreshControlNumbers}
+                className="flex items-center gap-2 px-5 py-3 text-indigo-600 font-bold text-[10px] uppercase tracking-widest bg-indigo-50 border border-indigo-100 rounded-xl hover:bg-indigo-100 transition-colors"
+                title="Regenerate for new year/term"
+              >
+                <RefreshCw size={14} />
+                Refresh Control Numbers
+              </button>
+            )}
           </div>
 
           <div className="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden">

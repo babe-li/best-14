@@ -146,6 +146,25 @@ export const storageService = {
     localStorage.setItem(DB_KEY, JSON.stringify(db));
   },
 
+  generateControlNumber: (name: string): string => {
+    // Generate a 12-digit control number starting with 99
+    // Incorporates a signature from the student's name
+    const cleanName = name.toUpperCase().replace(/[^A-Z]/g, '');
+    const firstChar = cleanName.charCodeAt(0) || 65;
+    const secondChar = cleanName.charCodeAt(1) || 66;
+    
+    // Signature from name (4 digits)
+    const sig1 = (firstChar % 100).toString().padStart(2, '0');
+    const sig2 = (secondChar % 100).toString().padStart(2, '0');
+    
+    // Remaining 6 digits are random to ensure uniqueness in this demo
+    // Including the current year to satisfy "each year" logic
+    const yearPart = new Date().getFullYear().toString().slice(-2);
+    const randomPart = Math.floor(1000 + Math.random() * 9000).toString();
+    
+    return `99${yearPart}${sig1}${sig2}${randomPart}`;
+  },
+
   // Auth helper
   getCurrentUser: (): User | null => {
     const user = localStorage.getItem('sms_current_user');
