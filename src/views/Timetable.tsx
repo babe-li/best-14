@@ -37,6 +37,7 @@ export const Timetable = () => {
   const [db, setDb] = useState(storageService.getDB());
   const [currentUser] = useState(storageService.getCurrentUser());
   const [selectedClass, setSelectedClass] = useState<string>(db.classes[0]?.id || '');
+  const [selectedTeacher, setSelectedTeacher] = useState<string>('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importErrors, setImportErrors] = useState<string[]>([]);
@@ -213,7 +214,11 @@ export const Timetable = () => {
     setIsAddModalOpen(true);
   };
 
-  const classTimetable = db.timetable.filter(entry => entry.classId === selectedClass);
+  const classTimetable = db.timetable.filter(entry => {
+    const matchesClass = entry.classId === selectedClass;
+    const matchesTeacher = selectedTeacher ? entry.teacherId === selectedTeacher : true;
+    return matchesClass && matchesTeacher;
+  });
   
   // Sort entries by time within each day
   const sortedTimetable = [...classTimetable].sort((a, b) => a.startTime.localeCompare(b.startTime));
@@ -243,6 +248,17 @@ export const Timetable = () => {
           >
             {db.classes.map(c => (
               <option key={c.id} value={c.id}>{c.name} {c.section}</option>
+            ))}
+          </select>
+
+          <select 
+            value={selectedTeacher}
+            onChange={(e) => setSelectedTeacher(e.target.value)}
+            className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-widest outline-none focus:ring-4 focus:ring-primary/5 transition-all"
+          >
+            <option value="">All Teachers</option>
+            {db.users.filter(u => u.role === 'teacher' || u.role === 'admin').map(u => (
+              <option key={u.id} value={u.id}>{u.name}</option>
             ))}
           </select>
 
