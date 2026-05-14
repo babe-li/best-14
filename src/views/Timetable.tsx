@@ -76,7 +76,21 @@ export const Timetable = () => {
     room: ''
   });
 
-  const canManage = currentUser?.role === 'admin';
+  const canManage = currentUser?.role === 'admin' || currentUser?.role === 'teacher';
+
+  const openAddModal = () => {
+    setEditingEntry(null);
+    setFormData({
+      day: 'Monday',
+      startTime: '08:00',
+      endTime: '08:40',
+      subjectId: '',
+      teacherId: currentUser?.role === 'teacher' ? currentUser.id : '',
+      classId: selectedClass !== 'all' ? selectedClass : (db.classes[0]?.id || ''),
+      room: ''
+    });
+    setIsAddModalOpen(true);
+  };
 
   useEffect(() => {
     if (db.classes.length > 0 && selectedClass === '') {
@@ -418,7 +432,7 @@ export const Timetable = () => {
                   Import CSV
                 </button>
                 <button 
-                  onClick={() => setIsAddModalOpen(true)}
+                  onClick={openAddModal}
                   className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:bg-primary-dark transition-all active:scale-95"
                 >
                   <Plus size={16} />
