@@ -8,6 +8,7 @@ import { AuthPage } from './components/AuthPage';
 import { DashboardLayout } from './components/DashboardLayout';
 import { storageService } from './services/storageService';
 import { type User } from './types';
+import { Landing } from './views/Landing';
 
 // View Components
 import { Overview } from './views/Overview';
@@ -29,6 +30,7 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [activeView, setActiveView] = useState('overview');
+  const [isAuthMode, setIsAuthMode] = useState(false);
 
   useEffect(() => {
     const session = storageService.getCurrentUser();
@@ -45,6 +47,7 @@ export default function App() {
   const handleLogout = () => {
     storageService.setCurrentUser(null);
     setUser(null);
+    setIsAuthMode(false);
   };
 
   if (isInitializing) {
@@ -59,7 +62,10 @@ export default function App() {
   }
 
   if (!user) {
-    return <AuthPage onLogin={handleLogin} />;
+    if (!isAuthMode) {
+      return <Landing onEnterApp={() => setIsAuthMode(true)} />;
+    }
+    return <AuthPage onLogin={handleLogin} onBack={() => setIsAuthMode(false)} />;
   }
 
   const renderView = () => {

@@ -13,9 +13,10 @@ import { cn } from '../lib/utils';
 
 interface AuthPageProps {
   onLogin: (user: any) => void;
+  onBack?: () => void;
 }
 
-export const AuthPage = ({ onLogin }: AuthPageProps) => {
+export const AuthPage = ({ onLogin, onBack }: AuthPageProps) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -347,6 +348,15 @@ export const AuthPage = ({ onLogin }: AuthPageProps) => {
           </form>
 
           <footer className="mt-16 text-center lg:text-left border-t border-slate-100 pt-6">
+            {onBack && (
+              <button 
+                onClick={onBack}
+                className="mb-6 w-full text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-primary transition-colors flex items-center justify-center lg:justify-start gap-2"
+              >
+                <LogIn size={10} className="rotate-180" />
+                Back to Frontpage
+              </button>
+            )}
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] leading-relaxed">
               Managed by Babeli Myovela <br />
               &copy; 2026 {SCHOOL_CONFIG.name}
