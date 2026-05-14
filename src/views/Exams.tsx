@@ -97,6 +97,9 @@ export const Exams = () => {
   const [calFilterClass, setCalFilterClass] = useState('all');
   const [calFilterSubject, setCalFilterSubject] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+  const [feedbackResult, setFeedbackResult] = useState<Result | null>(null);
+  const [feedbackText, setFeedbackText] = useState('');
 
   const isParent = currentUser?.role === 'parent';
   const isStudent = currentUser?.role === 'student';
@@ -394,6 +397,24 @@ export const Exams = () => {
     storageService.saveDB({ ...db, exams: updatedExams });
     setDb({ ...db, exams: updatedExams });
     setIsReminderModalOpen(false);
+  };
+
+  const handleOpenFeedback = (result: Result) => {
+    setFeedbackResult(result);
+    setFeedbackText(result.feedback || '');
+    setIsFeedbackModalOpen(true);
+  };
+
+  const handleSaveFeedback = () => {
+    if (!feedbackResult) return;
+    const db = storageService.getDB();
+    const updatedResults = db.results.map(r => 
+      r.id === feedbackResult.id ? { ...r, feedback: feedbackText } : r
+    );
+    storageService.saveDB({ ...db, results: updatedResults });
+    setDb({ ...db, results: updatedResults });
+    setIsFeedbackModalOpen(false);
+    setFeedbackResult(null);
   };
 
   const handleAddExam = (e: React.FormEvent) => {
@@ -1604,15 +1625,29 @@ export const Exams = () => {
                                 </td>
                                 <td className="px-6 py-4 text-center font-extrabold text-slate-900 text-sm">{result.marks}</td>
                                 <td className="px-6 py-4 text-center">
-                                  <span className={cn(
-                                    "px-2.5 py-1 rounded-lg text-[10px] font-black uppercase",
-                                    result.grade === 'A' ? "bg-emerald-50 text-emerald-600" :
-                                    result.grade === 'B' ? "bg-indigo-50 text-indigo-600" :
-                                    result.grade === 'C' ? "bg-amber-50 text-amber-600" :
-                                    "bg-red-50 text-red-600"
-                                  )}>
-                                    {result.grade}
-                                  </span>
+                                  <div className="flex items-center justify-center gap-2">
+                                    <span className={cn(
+                                      "px-2.5 py-1 rounded-lg text-[10px] font-black uppercase",
+                                      result.grade === 'A' ? "bg-emerald-50 text-emerald-600" :
+                                      result.grade === 'B' ? "bg-indigo-50 text-indigo-600" :
+                                      result.grade === 'C' ? "bg-amber-50 text-amber-600" :
+                                      "bg-red-50 text-red-600"
+                                    )}>
+                                      {result.grade}
+                                    </span>
+                                    {canManage && (
+                                      <button 
+                                        onClick={() => handleOpenFeedback(result)}
+                                        className={cn(
+                                          "p-1.5 rounded-lg transition-all",
+                                          result.feedback ? "text-primary bg-primary/10" : "text-slate-400 hover:text-primary hover:bg-slate-50"
+                                        )}
+                                        title={result.feedback ? "Edit Feedback" : "Add Feedback"}
+                                      >
+                                        <MessageSquare size={14} />
+                                      </button>
+                                    )}
+                                  </div>
                                 </td>
                               </tr>
                             );
@@ -2080,6 +2115,41 @@ export const Exams = () => {
                 <div className="pt-4 flex gap-4">
                   <button onClick={() => setIsReminderModalOpen(false)} className="flex-1 py-3 border border-slate-200 text-slate-400 font-bold rounded-xl hover:bg-slate-50 transition-colors uppercase text-[10px] tracking-widest">Cancel</button>
                   <button onClick={handleSaveReminders} className="flex-1 py-3 bg-primary text-white font-bold rounded-xl shadow-xl shadow-primary/20 hover:bg-primary-dark transition-all uppercase text-[10px] tracking-widest">Update Policy</button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isFeedbackModalOpen && feedbackResult && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsFeedbackModalOpen(false)} className="fixed inset-0 bg-slate-900/60 z-[60] backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="fixed inset-0 m-auto w-full max-w-md h-fit bg-white z-[70] rounded-2xl shadow-2xl overflow-hidden border border-slate-200">
+              <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-extrabold text-slate-900 uppercase tracking-tight">Personalized Feedback</h3>
+                  <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">
+                    {db.students.find(s => s.id === feedbackResult.studentId)?.name} 
+                    • {db.exams.find(e => e.id === feedbackResult.examId)?.subjectId}
+                  </p>
+                </div>
+                <button onClick={() => setIsFeedbackModalOpen(false)} className="p-2 text-slate-400 hover:bg-slate-50 rounded-full transition-colors"><X size={20} /></button>
+              </div>
+              <div className="p-8 space-y-6">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Candidate Performance Note</label>
+                  <textarea 
+                    value={feedbackText}
+                    onChange={(e) => setFeedbackText(e.target.value)}
+                    placeholder="Enter personalized feedback regarding student performance..."
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 outline-none text-sm font-medium h-32 resize-none transition-all"
+                  />
+                </div>
+                <div className="pt-4 flex gap-4">
+                  <button onClick={() => setIsFeedbackModalOpen(false)} className="flex-1 py-3 border border-slate-200 text-slate-400 font-bold rounded-xl hover:bg-slate-50 transition-colors uppercase text-[10px] tracking-widest">Cancel</button>
+                  <button onClick={handleSaveFeedback} className="flex-1 py-3 bg-primary text-white font-bold rounded-xl shadow-xl shadow-primary/20 hover:bg-primary-dark transition-all uppercase text-[10px] tracking-widest">Update Feedback</button>
                 </div>
               </div>
             </motion.div>

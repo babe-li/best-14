@@ -69,6 +69,8 @@ export const Students = () => {
   const [classes, setClasses] = useState<Class[]>([]);
   const [payments, setPayments] = useState<any[]>([]); // To calculate ledger
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [isLedgerModalOpen, setIsLedgerModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -120,6 +122,7 @@ export const Students = () => {
     dob: '',
     parentId: '',
     strongSubject: '',
+    status: 'active' as Student['status']
   });
 
   const parentUsers = db.users.filter(u => u.role === 'parent');
@@ -173,7 +176,7 @@ export const Students = () => {
       parentId: newStudent.parentId || 'parent-placeholder',
       feeBalance: 0,
       controlNumber: storageService.generateControlNumber(newStudent.name),
-      status: 'active',
+      status: newStudent.status,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       metadata: {
@@ -203,7 +206,7 @@ export const Students = () => {
     setStudents(updatedStudents);
     setUpdatedStudentId(student.id);
     setIsAddModalOpen(false);
-    setNewStudent({ name: '', gender: 'Male', classId: '', section: '', dob: '', parentId: '', strongSubject: '' });
+    setNewStudent({ name: '', gender: 'Male', classId: '', section: '', dob: '', parentId: '', strongSubject: '', status: 'active' });
     
     // Notify about the new account
     alert(`Student added! Student can login with:\nAdmission No: ${student.admissionNo}\nPassword: ${student.admissionNo}`);
@@ -224,6 +227,27 @@ export const Students = () => {
     storageService.saveDB({ ...db, students: updatedStudents });
     setStudents(updatedStudents);
     setUpdatedStudentId(studentId);
+  };
+
+  const handleOpenEdit = (student: Student) => {
+    setEditingStudent(student);
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingStudent) return;
+
+    const db = storageService.getDB();
+    const updatedStudents = db.students.map(s => 
+      s.id === editingStudent.id ? { ...editingStudent, updatedAt: new Date().toISOString() } : s
+    );
+
+    storageService.saveDB({ ...db, students: updatedStudents });
+    setStudents(updatedStudents);
+    setUpdatedStudentId(editingStudent.id);
+    setIsEditModalOpen(false);
+    setEditingStudent(null);
   };
 
   const handleOpenAssign = (student: Student) => {
@@ -903,7 +927,14 @@ export const Students = () => {
                       </button>
                       {isAdmin && (
                         <>
-                          <button className="p-1.5 text-slate-400 hover:text-primary hover:bg-slate-50 rounded transition-all">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenEdit(student);
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-primary hover:bg-slate-50 rounded transition-all"
+                            title="Edit Student Profile"
+                          >
                             <Edit2 size={14} />
                           </button>
                           <button className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-slate-50 rounded transition-all">
@@ -2004,6 +2035,18 @@ export const Students = () => {
                     </select>
                   </div>
                   <div className="space-y-1.5 md:col-span-2">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Student Status</label>
+                    <select 
+                      value={newStudent.status}
+                      onChange={(e) => setNewStudent({...newStudent, status: e.target.value as any})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+                    >
+                      <option value="active">Active</option>
+                      <option value="alumni">Alumni</option>
+                      <option value="transferred">Transferred</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5 md:col-span-2">
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Academic Strength (Optional)</label>
                     <select 
                       value={newStudent.strongSubject}
@@ -2032,6 +2075,127 @@ export const Students = () => {
                     className="flex-1 py-4 bg-primary text-white font-bold rounded-xl shadow-xl shadow-primary/20 hover:bg-primary-dark transition-all uppercase text-[10px] tracking-widest"
                   >
                     Confirm Admission
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Student Modal */}
+      <AnimatePresence>
+        {isEditModalOpen && editingStudent && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsEditModalOpen(false)}
+              className="fixed inset-0 bg-slate-900/60 z-[140] backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="fixed inset-0 m-auto w-full max-w-lg h-fit max-h-[90vh] bg-white z-[150] rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-slate-200"
+            >
+              <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-white relative z-10">
+                <div>
+                  <h3 className="text-xl font-extrabold text-slate-900 uppercase tracking-tight">Edit Student Profile</h3>
+                  <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">Academic ID: {editingStudent.admissionNo}</p>
+                </div>
+                <button onClick={() => setIsEditModalOpen(false)} className="p-2 text-slate-400 hover:bg-slate-50 rounded-full transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEdit} className="p-8 space-y-6 overflow-y-auto bg-white grow">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-2">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Full Name</label>
+                    <input 
+                      required
+                      type="text" 
+                      value={editingStudent.name}
+                      onChange={(e) => setEditingStudent({...editingStudent, name: e.target.value})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Date of Birth</label>
+                    <input 
+                      required
+                      type="date" 
+                      value={editingStudent.dob}
+                      onChange={(e) => setEditingStudent({...editingStudent, dob: e.target.value})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Gender</label>
+                    <select 
+                      value={editingStudent.gender}
+                      onChange={(e) => setEditingStudent({...editingStudent, gender: e.target.value as any})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+                    >
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Status</label>
+                    <select 
+                      value={editingStudent.status}
+                      onChange={(e) => setEditingStudent({...editingStudent, status: e.target.value as any})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+                    >
+                      <option value="active">Active</option>
+                      <option value="alumni">Alumni</option>
+                      <option value="transferred">Transferred</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Class Level</label>
+                    <select 
+                      required
+                      value={editingStudent.classId}
+                      onChange={(e) => setEditingStudent({...editingStudent, classId: e.target.value as any})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+                    >
+                      {SCHOOL_CONFIG.academicLevels.map(lvl => (
+                        <option key={lvl} value={lvl}>{lvl}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Section / Stream</label>
+                    <select 
+                      required
+                      value={editingStudent.section}
+                      onChange={(e) => setEditingStudent({...editingStudent, section: e.target.value})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+                    >
+                      {availableSections.map(sec => (
+                        <option key={sec} value={sec}>{sec}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="pt-6 flex gap-4">
+                  <button 
+                    type="button"
+                    onClick={() => setIsEditModalOpen(false)}
+                    className="flex-1 py-4 border border-slate-200 text-slate-400 font-bold rounded-xl hover:bg-slate-50 transition-colors uppercase text-[10px] tracking-widest"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit"
+                    className="flex-1 py-4 bg-primary text-white font-bold rounded-xl shadow-xl shadow-primary/20 hover:bg-primary-dark transition-all uppercase text-[10px] tracking-widest"
+                  >
+                    Save Changes
                   </button>
                 </div>
               </form>
