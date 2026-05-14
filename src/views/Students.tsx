@@ -116,6 +116,71 @@ export const Students = () => {
   const itemsPerPage = 10;
   const [availableSections, setAvailableSections] = useState<string[]>([]);
   const [updatedStudentId, setUpdatedStudentId] = useState<string | null>(null);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
+  const [isBulkStatusModalOpen, setIsBulkStatusModalOpen] = useState(false);
+  const [isBulkAssignModalOpen, setIsBulkAssignModalOpen] = useState(false);
+  const [bulkStatus, setBulkStatus] = useState<Student['status']>('active');
+  const [bulkTeacherId, setBulkTeacherId] = useState('');
+
+  const toggleStudentSelection = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const next = new Set(selectedStudentIds);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setSelectedStudentIds(next);
+  };
+
+  const toggleAllSelection = () => {
+    if (selectedStudentIds.size > 0 && selectedStudentIds.size === paginatedStudents.length) {
+      setSelectedStudentIds(new Set());
+    } else {
+      setSelectedStudentIds(new Set(paginatedStudents.map(s => s.id)));
+    }
+  };
+
+  const handleBulkStatusChange = () => {
+    if (selectedStudentIds.size === 0) return;
+    
+    const db = storageService.getDB();
+    const updatedStudents = db.students.map(s => {
+      if (selectedStudentIds.has(s.id)) {
+        return { ...s, status: bulkStatus, updatedAt: new Date().toISOString() };
+      }
+      return s;
+    });
+
+    storageService.saveDB({ ...db, students: updatedStudents });
+    setStudents(updatedStudents);
+    setIsBulkStatusModalOpen(false);
+    setSelectedStudentIds(new Set());
+    alert(`Successfully updated status for ${selectedStudentIds.size} students.`);
+  };
+
+  const handleBulkAssignTeacher = () => {
+    if (selectedStudentIds.size === 0 || !bulkTeacherId) return;
+    
+    const db = storageService.getDB();
+    const updatedStudents = db.students.map(s => {
+      if (selectedStudentIds.has(s.id)) {
+        return { 
+          ...s, 
+          metadata: { ...s.metadata, assignedTeacherId: bulkTeacherId },
+          updatedAt: new Date().toISOString() 
+        };
+      }
+      return s;
+    });
+
+    storageService.saveDB({ ...db, students: updatedStudents });
+    setStudents(updatedStudents);
+    setIsBulkAssignModalOpen(false);
+    setSelectedStudentIds(new Set());
+    setBulkTeacherId('');
+    alert(`Successfully assigned teacher to ${selectedStudentIds.size} students.`);
+  };
 
   // New Student Form State
   const [newStudent, setNewStudent] = useState({
@@ -857,6 +922,16 @@ export const Students = () => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/50 border-b border-slate-100">
+                <th className="px-4 py-4 w-10">
+                  <div className="flex items-center justify-center">
+                    <input 
+                      type="checkbox" 
+                      className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary/20"
+                      checked={paginatedStudents.length > 0 && selectedStudentIds.size === paginatedStudents.length}
+                      onChange={toggleAllSelection}
+                    />
+                  </div>
+                </th>
                 <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Student</th>
                 <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Admission No</th>
                 <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Class</th>
@@ -907,10 +982,21 @@ export const Students = () => {
                     transition={{ duration: 1.5, ease: "easeInOut" }}
                     className={cn(
                       "hover:bg-slate-50/80 transition-colors group relative cursor-pointer",
-                      isRecentlyUpdated && "z-10 shadow-sm"
+                      isRecentlyUpdated && "z-10 shadow-sm",
+                      selectedStudentIds.has(student.id) && "bg-primary/5"
                     )}
                     onClick={() => handleOpenDetail(student)}
                   >
+                    <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-center">
+                        <input 
+                          type="checkbox" 
+                          className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary/20"
+                          checked={selectedStudentIds.has(student.id)}
+                          onChange={() => toggleStudentSelection(student.id)}
+                        />
+                      </div>
+                    </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-4">
                         <div className="w-9 h-9 rounded bg-slate-100 text-slate-500 border border-slate-200 flex items-center justify-center font-bold text-xs shrink-0 group-hover:bg-primary group-hover:text-white group-hover:border-primary transition-all">
@@ -1152,7 +1238,192 @@ export const Students = () => {
         )}
       </div>
 
-      {/* Comprehensive Student Detail Modal */}
+      {/* Floating Bulk Action Bar */}
+      <AnimatePresence>
+        {isAdmin && selectedStudentIds.size > 0 && (
+          <motion.div 
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-2xl"
+          >
+            <div className="bg-slate-900 text-white p-4 rounded-2xl shadow-2xl shadow-slate-900/40 border border-slate-800 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-4 px-2">
+                <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white font-black shadow-lg shadow-primary/20">
+                  {selectedStudentIds.size}
+                </div>
+                <div>
+                  <p className="text-sm font-black uppercase tracking-tight leading-none">Students Selected</p>
+                  <button 
+                    onClick={() => setSelectedStudentIds(new Set())}
+                    className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-white transition-colors"
+                  >
+                    Deselect All
+                  </button>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setIsBulkStatusModalOpen(true)}
+                  className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                >
+                  <RefreshCw size={14} />
+                  Status
+                </button>
+                <button 
+                  onClick={() => setIsBulkAssignModalOpen(true)}
+                  className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                >
+                  <UserPlus size={14} />
+                  Assign Teacher
+                </button>
+                <div className="w-px h-8 bg-slate-800 mx-2" />
+                <button 
+                  onClick={() => {
+                    if (window.confirm(`Are you sure you want to delete ${selectedStudentIds.size} students? This cannot be undone.`)) {
+                      const db = storageService.getDB();
+                      const updatedStudents = db.students.filter(s => !selectedStudentIds.has(s.id));
+                      const updatedUsers = db.users.filter(u => !u.studentMetadata || !selectedStudentIds.has(u.studentMetadata.studentId));
+                      storageService.saveDB({ ...db, students: updatedStudents, users: updatedUsers });
+                      setStudents(updatedStudents);
+                      setSelectedStudentIds(new Set());
+                    }
+                  }}
+                  className="p-2.5 text-red-400 hover:bg-red-500/10 rounded-xl transition-all"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Bulk Status Modal */}
+      <AnimatePresence>
+        {isBulkStatusModalOpen && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              onClick={() => setIsBulkStatusModalOpen(false)} 
+              className="fixed inset-0 bg-slate-900/60 z-[140] backdrop-blur-sm" 
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }} 
+              animate={{ opacity: 1, scale: 1, y: 0 }} 
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="fixed inset-0 m-auto w-full max-w-md h-fit bg-white z-[150] rounded-[32px] shadow-2xl p-8 border border-slate-200"
+            >
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
+                    <RefreshCw size={24} className="text-primary" />
+                    Batch Status Update
+                  </h3>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Updating {selectedStudentIds.size} student records</p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Universal Status Target</label>
+                    <select 
+                      value={bulkStatus}
+                      onChange={(e) => setBulkStatus(e.target.value as any)}
+                      className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none text-sm font-bold uppercase transition-all"
+                    >
+                      <option value="active">Active</option>
+                      <option value="alumni">Alumni</option>
+                      <option value="transferred">Transferred</option>
+                      <option value="suspended">Suspended</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="pt-4 flex gap-4">
+                  <button 
+                    onClick={handleBulkStatusChange}
+                    className="flex-1 py-4 bg-primary text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-primary/20 hover:bg-primary-dark transition-all"
+                  >
+                    Execute Batch
+                  </button>
+                  <button 
+                    onClick={() => setIsBulkStatusModalOpen(false)}
+                    className="flex-1 py-4 bg-slate-100 text-slate-400 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Bulk Teacher Assign Modal */}
+      <AnimatePresence>
+        {isBulkAssignModalOpen && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              onClick={() => setIsBulkAssignModalOpen(false)} 
+              className="fixed inset-0 bg-slate-900/60 z-[140] backdrop-blur-sm" 
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }} 
+              animate={{ opacity: 1, scale: 1, y: 0 }} 
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="fixed inset-0 m-auto w-full max-w-md h-fit bg-white z-[150] rounded-[32px] shadow-2xl p-8 border border-slate-200"
+            >
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
+                    <UserPlus size={24} className="text-indigo-500" />
+                    Batch Liaison Assignment
+                  </h3>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Assigning {selectedStudentIds.size} students to staff</p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Liaison Representative</label>
+                    <select 
+                      value={bulkTeacherId}
+                      onChange={(e) => setBulkTeacherId(e.target.value)}
+                      className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 outline-none text-sm font-bold transition-all"
+                    >
+                      <option value="">Select Liaison Staff</option>
+                      {db.users.filter(u => u.role === 'teacher').map(teacher => (
+                        <option key={teacher.id} value={teacher.id}>{teacher.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="pt-4 flex gap-4">
+                  <button 
+                    onClick={handleBulkAssignTeacher}
+                    disabled={!bulkTeacherId}
+                    className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-600/20 hover:bg-indigo-700 transition-all disabled:opacity-50"
+                  >
+                    Update Liaison
+                  </button>
+                  <button 
+                    onClick={() => setIsBulkAssignModalOpen(false)}
+                    className="flex-1 py-4 bg-slate-100 text-slate-400 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
       <AnimatePresence>
         {isDetailModalOpen && selectedStudent && (
           <>
