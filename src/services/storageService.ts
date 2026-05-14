@@ -43,6 +43,7 @@ const INITIAL_DB: DB = {
       id: 'admin_1',
       name: SCHOOL_CONFIG.adminCredentials.name,
       email: SCHOOL_CONFIG.adminCredentials.email,
+      password: SCHOOL_CONFIG.adminCredentials.password,
       role: 'admin',
       twoFactorEnabled: true,
       hasChangedInitialPassword: false
@@ -51,6 +52,7 @@ const INITIAL_DB: DB = {
       id: 'teacher_1',
       name: 'Mwl. Julius Kambarage',
       email: 'julius@school.tz',
+      password: 'Kambarage',
       role: 'teacher',
       teacherMetadata: { subjects: ['Mathematics', 'Physics'] }
     },
@@ -58,6 +60,7 @@ const INITIAL_DB: DB = {
       id: 'teacher_2',
       name: 'Mwl. Farida Juma',
       email: 'farida@school.tz',
+      password: 'Juma',
       role: 'teacher',
       teacherMetadata: { subjects: ['Biology', 'English'] }
     },
@@ -65,6 +68,7 @@ const INITIAL_DB: DB = {
       id: 'parent_1',
       name: 'Mzee Ramadhani',
       email: 'rama@gmail.com',
+      password: 'Ramadhani',
       role: 'parent',
       parentMetadata: { childrenIds: ['stud_1'] }
     },
@@ -72,6 +76,7 @@ const INITIAL_DB: DB = {
       id: 'parent_2',
       name: 'Bi. Neema',
       email: 'neema@gmail.com',
+      password: 'Neema',
       role: 'parent',
       parentMetadata: { childrenIds: ['stud_2'] }
     },
@@ -79,12 +84,52 @@ const INITIAL_DB: DB = {
       id: 'student_1',
       name: 'Said Mwinyi',
       email: 'said@student.tz',
+      password: 'Mwinyi',
       role: 'student',
       studentMetadata: { admissionNo: '2026/001', studentId: 'stud_1' }
     }
   ],
-  students: [],
-  classes: [],
+  students: [
+    {
+      id: 'stud_1',
+      admissionNo: '2026/001',
+      name: 'Said Mwinyi',
+      dob: '2008-05-12',
+      gender: 'Male',
+      classId: 'Form 4',
+      section: 'A',
+      parentId: 'parent_1',
+      feeBalance: 150000,
+      controlNumber: '992601234567',
+      status: 'active',
+      createdAt: '2026-01-10T08:00:00Z',
+      metadata: {
+        strongSubject: 'Physics',
+        assignedTeacherId: 'teacher_1'
+      }
+    },
+    {
+      id: 'stud_2',
+      admissionNo: '2026/002',
+      name: 'Neema Joseph',
+      dob: '2009-08-22',
+      gender: 'Female',
+      classId: 'Form 2',
+      section: 'B',
+      parentId: 'parent_2',
+      feeBalance: 0,
+      controlNumber: '992608765432',
+      status: 'active',
+      createdAt: '2026-01-12T09:30:00Z',
+      metadata: {
+        strongSubject: 'English'
+      }
+    }
+  ],
+  classes: [
+    { id: 'class_1', name: 'Form 4', section: 'A', teacherId: 'teacher_1', capacity: 45 },
+    { id: 'class_2', name: 'Form 2', section: 'B', teacherId: 'teacher_2', capacity: 40 }
+  ],
   fees: [],
   payments: [],
   exams: [
@@ -125,7 +170,26 @@ const INITIAL_DB: DB = {
       reminderType: 'email'
     }
   ],
-  results: [],
+  results: [
+    {
+      id: 'res_1',
+      examId: 'exam_3',
+      studentId: 'stud_1',
+      marks: 88,
+      grade: 'A',
+      remarks: 'Excellent work!',
+      feedback: 'Highly impressed with your understanding of thermodynamics and mechanics. Your laboratory reports are detailed and scientifically sound. Mwinyi, continue this level of dedication.'
+    },
+    {
+      id: 'res_2',
+      examId: 'exam_1',
+      studentId: 'stud_1',
+      marks: 75,
+      grade: 'B',
+      remarks: 'Steady progress',
+      feedback: 'Good grasp of algebra, but needs more practice in geometry to reach an A grade.'
+    }
+  ],
   messages: [],
   announcements: [
     {

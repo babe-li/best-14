@@ -40,7 +40,9 @@ import {
   BookOpen,
   LogOut,
   MessageCircle,
-  BarChart3
+  BarChart3,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -108,6 +110,8 @@ export const Students = () => {
   const [selectedClass, setSelectedClass] = useState('all');
   const [selectedSection, setSelectedSection] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
+  const [selectedTeacherId, setSelectedTeacherId] = useState('all');
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [availableSections, setAvailableSections] = useState<string[]>([]);
@@ -185,11 +189,12 @@ export const Students = () => {
     };
 
     // Create a corresponding User account for the student
+    const lastName = student.name.trim().split(' ').pop() || student.admissionNo;
     const studentUser: User = {
       id: generateId(),
       name: student.name,
       email: student.admissionNo,
-      password: student.admissionNo,
+      password: lastName,
       role: 'student',
       avatar: student.name.split(' ').map(n => n[0]).join('').toUpperCase(),
       studentMetadata: {
@@ -199,7 +204,23 @@ export const Students = () => {
     };
 
     const updatedStudents = [...db.students, student];
-    const updatedUsers = [...db.users, studentUser];
+    
+    // Automatic Linking: Update parent's children list
+    const updatedUsers = db.users.map(u => {
+      if (u.id === student.parentId && u.role === 'parent') {
+        return {
+          ...u,
+          parentMetadata: {
+            ...u.parentMetadata,
+            childrenIds: [...(u.parentMetadata?.childrenIds || []), student.id]
+          }
+        };
+      }
+      return u;
+    });
+
+    // Add the student user to the database
+    updatedUsers.push(studentUser);
     
     storageService.saveDB({ ...db, students: updatedStudents, users: updatedUsers });
     
@@ -208,8 +229,9 @@ export const Students = () => {
     setIsAddModalOpen(false);
     setNewStudent({ name: '', gender: 'Male', classId: '', section: '', dob: '', parentId: '', strongSubject: '', status: 'active' });
     
-    // Notify about the new account
-    alert(`Student added! Student can login with:\nAdmission No: ${student.admissionNo}\nPassword: ${student.admissionNo}`);
+    // Notify about the new account and link automatically to details
+    alert(`Student added! Student can login with:\nAdmission No: ${student.admissionNo}\nInitial Password: ${lastName}`);
+    handleOpenDetail(student);
   };
 
   const generateControlNumber = (studentId: string) => {
@@ -239,11 +261,46 @@ export const Students = () => {
     if (!editingStudent) return;
 
     const db = storageService.getDB();
+    const oldStudent = db.students.find(s => s.id === editingStudent.id);
+    
     const updatedStudents = db.students.map(s => 
       s.id === editingStudent.id ? { ...editingStudent, updatedAt: new Date().toISOString() } : s
     );
 
-    storageService.saveDB({ ...db, students: updatedStudents });
+    // Update parent links and student user record
+    let updatedUsers = db.users.map(u => {
+      // 1. Update the student's own user record if they match
+      if (u.studentMetadata?.studentId === editingStudent.id) {
+        return { ...u, name: editingStudent.name };
+      }
+      
+      // 2. Adjust parent linking if parent has changed
+      if (oldStudent && oldStudent.parentId !== editingStudent.parentId) {
+        // Remove from old parent
+        if (u.id === oldStudent.parentId && u.role === 'parent') {
+          return {
+            ...u,
+            parentMetadata: {
+              ...u.parentMetadata,
+              childrenIds: (u.parentMetadata?.childrenIds || []).filter(id => id !== editingStudent.id)
+            }
+          };
+        }
+        // Add to new parent
+        if (u.id === editingStudent.parentId && u.role === 'parent') {
+          return {
+            ...u,
+            parentMetadata: {
+              ...u.parentMetadata,
+              childrenIds: [...(u.parentMetadata?.childrenIds || []), editingStudent.id]
+            }
+          };
+        }
+      }
+      return u;
+    });
+
+    storageService.saveDB({ ...db, students: updatedStudents, users: updatedUsers });
     setStudents(updatedStudents);
     setUpdatedStudentId(editingStudent.id);
     setIsEditModalOpen(false);
@@ -414,11 +471,12 @@ export const Students = () => {
       };
 
       // Create user
+      const lastName = student.name.trim().split(' ').pop() || student.admissionNo;
       const studentUser: User = {
         id: generateId(),
         name: student.name,
         email: student.admissionNo,
-        password: student.admissionNo,
+        password: lastName,
         role: 'student',
         avatar: student.name.split(' ').map(n => n[0]).join('').toUpperCase(),
         studentMetadata: {
@@ -573,9 +631,11 @@ export const Students = () => {
     setSelectedClass('all');
     setSelectedSection('all');
     setSelectedStatus('all');
+    setSelectedTeacherId('all');
+    setSortConfig(null);
   };
 
-  const isFiltered = searchTerm !== '' || selectedClass !== 'all' || selectedSection !== 'all' || selectedStatus !== 'all';
+  const isFiltered = searchTerm !== '' || selectedClass !== 'all' || selectedSection !== 'all' || selectedStatus !== 'all' || selectedTeacherId !== 'all';
 
   const filteredStudents = students.filter(s => {
     const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -583,8 +643,38 @@ export const Students = () => {
     const matchesClass = selectedClass === 'all' || s.classId === selectedClass;
     const matchesSection = selectedSection === 'all' || s.section === selectedSection;
     const matchesStatus = selectedStatus === 'all' || s.status === selectedStatus;
-    return matchesSearch && matchesClass && matchesSection && matchesStatus;
+    const matchesTeacher = selectedTeacherId === 'all' || s.metadata?.assignedTeacherId === selectedTeacherId;
+    return matchesSearch && matchesClass && matchesSection && matchesStatus && matchesTeacher;
+  }).sort((a, b) => {
+    if (!sortConfig) return 0;
+    
+    let aValue: any;
+    let bValue: any;
+    
+    if (sortConfig.key === 'status') {
+      aValue = a.status;
+      bValue = b.status;
+    } else if (sortConfig.key === 'teacher') {
+      const teacherA = db.users.find(u => u.id === (a.metadata?.assignedTeacherId || ''))?.name || 'Unassigned';
+      const teacherB = db.users.find(u => u.id === (b.metadata?.assignedTeacherId || ''))?.name || 'Unassigned';
+      aValue = teacherA;
+      bValue = teacherB;
+    } else {
+      return 0;
+    }
+    
+    if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+    if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+    return 0;
   });
+
+  const handleSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
 
   const totalPages = Math.ceil(filteredStudents.length / itemsPerPage);
   const paginatedStudents = filteredStudents.slice(
@@ -594,7 +684,7 @@ export const Students = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedClass, selectedSection, selectedStatus]);
+  }, [searchTerm, selectedClass, selectedSection, selectedStatus, selectedTeacherId]);
 
   return (
     <div className="space-y-8">
@@ -604,31 +694,31 @@ export const Students = () => {
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Student Registry</h1>
           <p className="text-slate-400 text-sm font-medium">Manage admissions, profiles, and class allocations.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {isAdmin && (
             <button 
               onClick={batchGenerateControlNumbers}
-              className="flex items-center gap-2 bg-slate-100 text-slate-600 px-5 py-2.5 rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all border border-slate-200"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-100 text-slate-600 px-4 py-2.5 rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all border border-slate-200"
               title="Sync Control Numbers for the current year"
             >
               <RefreshCw size={14} className={cn(updatedStudentId === 'batch' && "animate-spin")} />
-              Sync Codes
+              <span className="whitespace-nowrap">Sync Codes</span>
             </button>
           )}
           {isAdmin && (
-            <label className="flex items-center gap-2 bg-slate-900 text-white px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-slate-900/10 hover:bg-black transition-all cursor-pointer">
+            <label className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-900 text-white px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-slate-900/10 hover:bg-black transition-all cursor-pointer">
               <Upload size={16} />
-              Bulk Import
+              <span className="whitespace-nowrap">Bulk Import</span>
               <input type="file" accept=".csv" onChange={handleCSVImport} className="hidden" />
             </label>
           )}
           {isAdmin && (
             <button 
               onClick={() => setIsAddModalOpen(true)}
-              className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:bg-primary-dark transition-all"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:bg-primary-dark transition-all"
             >
               <UserPlus size={16} />
-              Add Student
+              <span className="whitespace-nowrap">Add Student</span>
             </button>
           )}
           <button 
@@ -644,8 +734,8 @@ export const Students = () => {
 
       {/* Filters & Search */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="relative flex-1">
+        <div className="flex flex-col lg:flex-row gap-4">
+          <div className="relative flex-1 lg:max-w-md">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
             <input 
               type="text" 
@@ -655,13 +745,13 @@ export const Students = () => {
               className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none text-sm font-medium transition-all"
             />
           </div>
-          <div className="flex gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 flex-1 lg:flex-none">
             <div className="flex flex-col gap-1">
               <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Academic Level</label>
               <select 
                 value={selectedClass}
                 onChange={(e) => setSelectedClass(e.target.value)}
-                className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-tight focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all min-w-[140px]"
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-tight focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all"
               >
                 <option value="all">All Classes</option>
                 {SCHOOL_CONFIG.academicLevels.map(lvl => (
@@ -674,7 +764,7 @@ export const Students = () => {
               <select 
                 value={selectedSection}
                 onChange={(e) => setSelectedSection(e.target.value)}
-                className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-tight focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all min-w-[120px]"
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-tight focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all"
               >
                 <option value="all">All Sections</option>
                 {availableSections.map(sec => (
@@ -687,7 +777,7 @@ export const Students = () => {
               <select 
                 value={selectedStatus}
                 onChange={(e) => setSelectedStatus(e.target.value)}
-                className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-tight focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all min-w-[120px]"
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-tight focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all"
               >
                 <option value="all">Any Status</option>
                 <option value="active">Active</option>
@@ -695,19 +785,31 @@ export const Students = () => {
                 <option value="transferred">Transferred</option>
               </select>
             </div>
-            {isFiltered && (
-              <div className="flex flex-col gap-1">
-                <div className="h-[13px]" /> {/* Spacer for label */}
-                <button 
-                  onClick={resetFilters}
-                  className="flex items-center gap-2 px-4 py-3 text-red-500 bg-red-50 border border-red-100 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-red-100 transition-colors"
-                >
-                  <X size={16} />
-                  Clear
-                </button>
-              </div>
-            )}
+            <div className="flex flex-col gap-1">
+              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Assigned Teacher</label>
+              <select 
+                value={selectedTeacherId}
+                onChange={(e) => setSelectedTeacherId(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-tight focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all"
+              >
+                <option value="all">Every Teacher</option>
+                {db.users.filter(u => u.role === 'teacher').map(teacher => (
+                  <option key={teacher.id} value={teacher.id}>{teacher.name}</option>
+                ))}
+              </select>
+            </div>
           </div>
+          {isFiltered && (
+            <div className="flex flex-col gap-1 lg:justify-end">
+              <button 
+                onClick={resetFilters}
+                className="flex items-center justify-center gap-2 px-6 py-3 text-red-500 bg-red-50 border border-red-100 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-red-100 transition-colors w-full lg:w-auto"
+              >
+                <X size={16} />
+                Clear Filters
+              </button>
+            </div>
+          )}
         </div>
         
         {isFiltered && (
@@ -738,6 +840,12 @@ export const Students = () => {
                   <X size={10} className="cursor-pointer" onClick={() => setSelectedStatus('all')} />
                 </span>
               )}
+              {selectedTeacherId !== 'all' && (
+                <span className="px-2 py-1 bg-indigo-50 text-indigo-600 text-[9px] font-bold rounded-lg border border-indigo-100 flex items-center gap-1">
+                  Teacher: {db.users.find(u => u.id === selectedTeacherId)?.name}
+                  <X size={10} className="cursor-pointer" onClick={() => setSelectedTeacherId('all')} />
+                </span>
+              )}
             </div>
           </div>
         )}
@@ -752,8 +860,33 @@ export const Students = () => {
                 <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Student</th>
                 <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Admission No</th>
                 <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Class</th>
+                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                  <button 
+                    onClick={() => handleSort('teacher')}
+                    className="flex items-center gap-1 hover:text-primary transition-colors uppercase"
+                  >
+                    Liaison Teacher
+                    {sortConfig?.key === 'teacher' ? (
+                      sortConfig.direction === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />
+                    ) : (
+                      <Filter size={10} className="opacity-0 group-hover:opacity-100" />
+                    )}
+                  </button>
+                </th>
                 <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Balance</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Status</th>
+                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                  <button 
+                    onClick={() => handleSort('status')}
+                    className="flex items-center gap-1 hover:text-primary transition-colors uppercase"
+                  >
+                    Status
+                    {sortConfig?.key === 'status' ? (
+                      sortConfig.direction === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />
+                    ) : (
+                      <Filter size={10} className="opacity-0 group-hover:opacity-100" />
+                    )}
+                  </button>
+                </th>
                 <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Actions</th>
               </tr>
             </thead>
@@ -808,12 +941,6 @@ export const Students = () => {
                               <span className="text-[8px] font-bold text-primary bg-primary/5 px-1 rounded border border-primary/10 tracking-widest">#{student.controlNumber}</span>
                             )}
                           </div>
-                          {student.metadata?.assignedTeacherId && (
-                            <div className="mt-1.5 flex items-center gap-1.5 text-[9px] font-bold text-indigo-500 uppercase tracking-tight bg-indigo-50/50 w-fit px-1.5 py-0.5 rounded border border-indigo-100/50">
-                              <UserCheck size={10} />
-                              Liaison: {student.metadata.assignedTeacherId === 't1' ? 'Mwl. Julius' : student.metadata.assignedTeacherId === 't2' ? 'Mwl. Farida' : 'Faculty Assigned'}
-                            </div>
-                          )}
                         </div>
                       </div>
                     </td>
@@ -827,6 +954,20 @@ export const Students = () => {
                       <GraduationCap size={14} className="text-slate-300" />
                       {student.classId} {student.section && <span className="text-primary ml-1">({student.section})</span>}
                     </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    {student.metadata?.assignedTeacherId ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-500">
+                          <UserCheck size={12} />
+                        </div>
+                        <span className="text-xs font-bold text-slate-700">
+                          {db.users.find(u => u.id === student.metadata?.assignedTeacherId)?.name || 'Teacher'}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest italic">Unassigned</span>
+                    )}
                   </td>
                   <td className="px-6 py-4 text-right">
                     <span className={cn(
@@ -948,7 +1089,7 @@ export const Students = () => {
                 );
               }) : (
                 <tr>
-                  <td colSpan={6} className="px-6 py-20 text-center text-slate-400 text-xs font-bold uppercase tracking-widest italic">
+                  <td colSpan={7} className="px-6 py-20 text-center text-slate-400 text-xs font-bold uppercase tracking-widest italic">
                     No results found
                   </td>
                 </tr>
@@ -1267,12 +1408,13 @@ export const Students = () => {
                       </div>
                     </div>
 
-                    <div className="bg-white rounded-[32px] border border-slate-200 overflow-hidden shadow-sm pt-2">
+                    <div className="bg-white rounded-[32px] border border-slate-200 shadow-sm pt-2 overflow-hidden">
                       <div className="px-8 py-4 border-b border-slate-50 flex items-center justify-between">
                          <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Pedagogical Assessment Log</h4>
                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{db.results.filter(r => r.studentId === selectedStudent.id).length} Entries Captured</span>
                       </div>
-                      <table className="w-full text-left">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left">
                         <thead>
                           <tr className="bg-slate-50 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">
                             <th className="px-8 py-5">Assessment Cycle</th>
@@ -1313,7 +1455,8 @@ export const Students = () => {
                       </table>
                     </div>
                   </div>
-                )}
+                </div>
+              )}
 
                 {activeTab === 'finance' && (
                   <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -1353,7 +1496,8 @@ export const Students = () => {
                         Fiscal Ledger Logs
                       </h4>
                       <div className="bg-white border border-slate-200 rounded-[32px] overflow-hidden shadow-sm">
-                        <table className="w-full text-left">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left">
                           <thead>
                             <tr className="bg-slate-50 text-[9px] font-black text-slate-400 uppercase tracking-widest">
                               <th className="px-8 py-5">Timestamp</th>
@@ -1395,7 +1539,8 @@ export const Students = () => {
                       </div>
                     </div>
                   </div>
-                )}
+                </div>
+              )}
 
                 {activeTab === 'attendance' && (() => {
                   const filteredAttendance = (db.attendance || []).filter(a => {
@@ -1535,7 +1680,7 @@ export const Students = () => {
                       </div>
                     </div>
 
-                    <div className="bg-white border border-slate-200 rounded-[32px] overflow-hidden shadow-sm pt-2">
+                    <div className="bg-white border border-slate-200 rounded-[32px] shadow-sm pt-2 overflow-hidden">
                        <div className="px-8 py-4 border-b border-slate-50 flex items-center justify-between">
                           <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Observation Window Log</h4>
                           {filteredAttendance.length !== (db.attendance?.filter(a => a.studentId === selectedStudent.id).length || 0) && (
@@ -1544,7 +1689,8 @@ export const Students = () => {
                             </span>
                           )}
                        </div>
-                      <table className="w-full text-left">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left">
                         <thead>
                           <tr className="bg-slate-50 text-[9px] font-black text-slate-400 uppercase tracking-widest tracking-[0.2em]">
                             <th className="px-8 py-5">Observation Window</th>
@@ -1586,8 +1732,9 @@ export const Students = () => {
                       </table>
                     </div>
                   </div>
-                );
-              })()}
+                </div>
+              );
+            })()}
               {activeTab === 'remarks' && (
                   <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">

@@ -1105,8 +1105,9 @@ export const Academics = () => {
                   </div>
                 </div>
 
-                <div className="bg-white rounded-[32px] border border-slate-200 overflow-hidden shadow-sm">
-                  <table className="w-full text-left border-collapse">
+                <div className="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-100">
                         <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Subject Audit</th>
@@ -1210,6 +1211,7 @@ export const Academics = () => {
                   </table>
                 </div>
               </div>
+            </div>
 
               <div className="p-8 bg-white border-t border-slate-100 flex items-center justify-between gap-4">
                 <button className="flex-1 py-4 bg-slate-900 text-white font-black uppercase tracking-[0.2em] text-[10px] rounded-2xl shadow-xl shadow-slate-900/20 hover:bg-black transition-all flex items-center justify-center gap-2">

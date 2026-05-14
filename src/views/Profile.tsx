@@ -54,7 +54,14 @@ export const Profile = () => {
   const [children, setChildren] = useState<Student[]>([]);
   const [showPassword, setShowPassword] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
   const [success, setSuccess] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
 
   useEffect(() => {
     const db = storageService.getDB();
@@ -76,7 +83,52 @@ export const Profile = () => {
   }, [user]);
 
   const handleSave = () => {
+    if (!user) return;
+    const db = storageService.getDB();
+    const updatedUsers = db.users.map(u => u.id === user.id ? { ...u, name: user.name, phone: user.phone } : u);
+    storageService.saveDB({ ...db, users: updatedUsers });
+    storageService.setCurrentUser({ ...user });
     setIsEditing(false);
+    setSuccess(true);
+    setTimeout(() => setSuccess(false), 3000);
+  };
+
+  const handlePasswordChange = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError('');
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordError('New passwords do not match.');
+      return;
+    }
+
+    if (passwordForm.newPassword.length < 6) {
+      setPasswordError('Password must be at least 6 characters long.');
+      return;
+    }
+
+    const db = storageService.getDB();
+    const userToUpdate = db.users.find(u => u.id === user?.id);
+
+    if (userToUpdate?.password !== passwordForm.currentPassword) {
+      setPasswordError('Current password is incorrect.');
+      return;
+    }
+
+    const updatedUsers = db.users.map(u => 
+      u.id === user?.id ? { ...u, password: passwordForm.newPassword, hasChangedInitialPassword: true } : u
+    );
+
+    storageService.saveDB({ ...db, users: updatedUsers });
+    
+    const updatedCurrentUser = updatedUsers.find(u => u.id === user?.id);
+    if (updatedCurrentUser) {
+      storageService.setCurrentUser(updatedCurrentUser);
+      setUser(updatedCurrentUser);
+    }
+
+    setIsChangingPassword(false);
+    setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
     setSuccess(true);
     setTimeout(() => setSuccess(false), 3000);
   };
@@ -151,9 +203,18 @@ export const Profile = () => {
                          </button>
                       </p>
                       <p className="text-sm font-bold text-slate-900 font-mono tracking-tighter">
-                         {showPassword ? 'P@ssword2026!' : '••••••••••••'}
+                         {showPassword ? user.password || '••••••••••••' : '••••••••••••'}
                       </p>
                    </div>
+                </div>
+                <div className="pt-2">
+                   <button 
+                     onClick={() => setIsChangingPassword(true)}
+                     className="w-full py-3 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-indigo-100 transition-all flex items-center justify-center gap-2"
+                   >
+                     <Lock size={12} />
+                     Update Access Key
+                   </button>
                 </div>
                 <div className="flex items-center gap-4">
                    <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 border border-slate-100">
@@ -218,7 +279,8 @@ export const Profile = () => {
                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Display Descriptor</label>
                    <input 
                      type="text" 
-                     defaultValue={user.name}
+                     value={user.name}
+                     onChange={(e) => setUser({...user, name: e.target.value})}
                      className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none text-sm font-bold transition-all"
                    />
                 </div>
@@ -226,7 +288,8 @@ export const Profile = () => {
                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Terminal Voice</label>
                    <input 
                      type="tel" 
-                     defaultValue={user.phone}
+                     value={user.phone || ''}
+                     onChange={(e) => setUser({...user, phone: e.target.value})}
                      placeholder="+255..."
                      className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none text-sm font-bold transition-all"
                    />
@@ -247,6 +310,79 @@ export const Profile = () => {
                    Abort Audit
                  </button>
               </div>
+            </motion.div>
+          )}
+
+          {/* Password Change Form */}
+          {isChangingPassword && (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white p-8 rounded-[32px] border-2 border-indigo-500 shadow-2xl space-y-6"
+            >
+              <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
+                <Lock size={20} className="text-indigo-500" />
+                Security Key Protocol
+              </h2>
+              <form onSubmit={handlePasswordChange} className="space-y-6">
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Current Validation Key</label>
+                     <input 
+                       type="password" 
+                       value={passwordForm.currentPassword}
+                       onChange={(e) => setPasswordForm({...passwordForm, currentPassword: e.target.value})}
+                       required
+                       className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 outline-none text-sm font-bold transition-all"
+                     />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">New System Link Key</label>
+                       <input 
+                         type="password" 
+                         value={passwordForm.newPassword}
+                         onChange={(e) => setPasswordForm({...passwordForm, newPassword: e.target.value})}
+                         required
+                         className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 outline-none text-sm font-bold transition-all"
+                       />
+                    </div>
+                    <div className="space-y-1.5">
+                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Confirm Link Key</label>
+                       <input 
+                         type="password" 
+                         value={passwordForm.confirmPassword}
+                         onChange={(e) => setPasswordForm({...passwordForm, confirmPassword: e.target.value})}
+                         required
+                         className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 outline-none text-sm font-bold transition-all"
+                       />
+                    </div>
+                  </div>
+                </div>
+
+                {passwordError && (
+                  <div className="p-3 bg-red-50 text-red-600 rounded-xl text-[10px] font-black uppercase tracking-widest border border-red-100 italic">
+                    Error Code: {passwordError}
+                  </div>
+                )}
+
+                <div className="pt-4 flex gap-4">
+                   <button 
+                     type="submit"
+                     className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-600/20 flex items-center justify-center gap-2"
+                   >
+                     <Shield size={16} />
+                     Authorize Key Reset
+                   </button>
+                   <button 
+                     type="button"
+                     onClick={() => setIsChangingPassword(false)}
+                     className="flex-1 py-4 bg-slate-100 text-slate-400 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all"
+                   >
+                     Cancel Link
+                   </button>
+                </div>
+              </form>
             </motion.div>
           )}
 

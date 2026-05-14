@@ -646,18 +646,18 @@ export const Exams = () => {
 
   return (
     <div className="space-y-8 pb-12">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Examinations & NECTA</h1>
           <p className="text-slate-400 text-sm font-medium tracking-tight">Track academic progress and generate standardized results.</p>
         </div>
         
-        <div className="flex items-center gap-3">
-          <div className="bg-slate-100 p-1 rounded-xl flex gap-1">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4">
+          <div className="bg-slate-100 p-1 rounded-xl flex overflow-x-auto scrollbar-none">
             <button 
               onClick={() => setViewMode('calendar')}
               className={cn(
-                "px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
+                "flex-1 md:flex-none px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap",
                 viewMode === 'calendar' ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
               )}
             >
@@ -666,7 +666,7 @@ export const Exams = () => {
             <button 
               onClick={() => setViewMode('list')}
               className={cn(
-                "px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
+                "flex-1 md:flex-none px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap",
                 viewMode === 'list' ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
               )}
             >
@@ -675,7 +675,7 @@ export const Exams = () => {
             <button 
               onClick={() => setViewMode('results')}
               className={cn(
-                "px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
+                "flex-1 md:flex-none px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap",
                 viewMode === 'results' ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
               )}
             >
@@ -684,7 +684,7 @@ export const Exams = () => {
             <button 
               onClick={() => setViewMode('divisions')}
               className={cn(
-                "px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
+                "flex-1 md:flex-none px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap",
                 viewMode === 'divisions' ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
               )}
             >
@@ -694,7 +694,7 @@ export const Exams = () => {
               <button 
                 onClick={() => setViewMode('analysis')}
                 className={cn(
-                  "px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all relative overflow-hidden",
+                  "flex-1 md:flex-none px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all relative overflow-hidden whitespace-nowrap",
                   viewMode === 'analysis' ? "bg-premium-dark text-premium-gold shadow-lg shadow-premium-dark/10 border border-premium-gold/20" : "text-slate-400 hover:text-slate-600"
                 )}
               >
@@ -705,7 +705,7 @@ export const Exams = () => {
               <button 
                 onClick={() => setViewMode('grading')}
                 className={cn(
-                  "px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all",
+                  "flex-1 md:flex-none px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap",
                   viewMode === 'grading' ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
                 )}
               >
@@ -717,14 +717,14 @@ export const Exams = () => {
             <div className="flex items-center gap-2">
               <button 
                 onClick={() => setIsBulkImportOpen(true)}
-                className="flex items-center gap-2 bg-slate-800 text-white px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-slate-900/20 hover:bg-slate-900 transition-all"
+                className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-slate-800 text-white px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-slate-900/20 hover:bg-slate-900 transition-all"
               >
                 <Upload size={16} />
-                Bulk Import
+                Bulk
               </button>
               <button 
                 onClick={() => setIsAddModalOpen(true)}
-                className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:bg-primary-dark transition-all"
+                className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:bg-primary-dark transition-all"
               >
                 <Plus size={16} />
                 Schedule
@@ -1635,14 +1635,14 @@ export const Exams = () => {
                                     )}>
                                       {result.grade}
                                     </span>
-                                    {canManage && (
+                                    {(canManage || result.feedback) && (
                                       <button 
                                         onClick={() => handleOpenFeedback(result)}
                                         className={cn(
                                           "p-1.5 rounded-lg transition-all",
                                           result.feedback ? "text-primary bg-primary/10" : "text-slate-400 hover:text-primary hover:bg-slate-50"
                                         )}
-                                        title={result.feedback ? "Edit Feedback" : "Add Feedback"}
+                                        title={result.feedback ? (canManage ? "Edit Feedback" : "View Feedback") : "Add Feedback"}
                                       >
                                         <MessageSquare size={14} />
                                       </button>
@@ -2143,13 +2143,21 @@ export const Exams = () => {
                   <textarea 
                     value={feedbackText}
                     onChange={(e) => setFeedbackText(e.target.value)}
-                    placeholder="Enter personalized feedback regarding student performance..."
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 outline-none text-sm font-medium h-32 resize-none transition-all"
+                    readOnly={!canManage}
+                    placeholder={canManage ? "Enter personalized feedback regarding student performance..." : "No feedback provided yet."}
+                    className={cn(
+                      "w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 outline-none text-sm font-medium h-32 resize-none transition-all",
+                      canManage ? "bg-slate-50" : "bg-slate-50/30 text-slate-500 cursor-default"
+                    )}
                   />
                 </div>
                 <div className="pt-4 flex gap-4">
-                  <button onClick={() => setIsFeedbackModalOpen(false)} className="flex-1 py-3 border border-slate-200 text-slate-400 font-bold rounded-xl hover:bg-slate-50 transition-colors uppercase text-[10px] tracking-widest">Cancel</button>
-                  <button onClick={handleSaveFeedback} className="flex-1 py-3 bg-primary text-white font-bold rounded-xl shadow-xl shadow-primary/20 hover:bg-primary-dark transition-all uppercase text-[10px] tracking-widest">Update Feedback</button>
+                  <button onClick={() => setIsFeedbackModalOpen(false)} className="flex-1 py-3 border border-slate-200 text-slate-400 font-bold rounded-xl hover:bg-slate-50 transition-colors uppercase text-[10px] tracking-widest">
+                    {canManage ? "Cancel" : "Close"}
+                  </button>
+                  {canManage && (
+                    <button onClick={handleSaveFeedback} className="flex-1 py-3 bg-primary text-white font-bold rounded-xl shadow-xl shadow-primary/20 hover:bg-primary-dark transition-all uppercase text-[10px] tracking-widest">Update Feedback</button>
+                  )}
                 </div>
               </div>
             </motion.div>
