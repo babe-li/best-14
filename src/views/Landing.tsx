@@ -30,7 +30,18 @@ export const Landing = ({ onEnterApp }: LandingProps) => {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
 
   return (
-    <div className="min-h-screen bg-white font-sans selection:bg-primary selection:text-white">
+    <div className="min-h-screen bg-white font-sans selection:bg-primary selection:text-white relative">
+      {/* Global Background */}
+      <div className="fixed inset-0 z-0 pointer-events-none opacity-20">
+        <img 
+          src="https://images.unsplash.com/photo-1441974231531-c6227db76b6e?q=80&w=2560&auto=format&fit=crop" 
+          alt="Forest Background"
+          className="w-full h-full object-cover"
+          referrerPolicy="no-referrer"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-white via-white/40 to-white" />
+      </div>
+
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-xl border-b border-slate-100">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
@@ -87,10 +98,18 @@ export const Landing = ({ onEnterApp }: LandingProps) => {
 
       {/* Hero Section */}
       <section className="pt-48 pb-24 px-6 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-1/3 h-full bg-slate-50 border-l border-slate-100 pointer-events-none" />
-        <div className="absolute top-1/4 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
+        {/* Forest Background with Overlay */}
+        <div className="absolute inset-0 z-0">
+          <img 
+            src="https://images.unsplash.com/photo-1441974231531-c6227db76b6e?q=80&w=2560&auto=format&fit=crop" 
+            alt="Forest Background"
+            className="w-full h-full object-cover"
+            referrerPolicy="no-referrer"
+          />
+          <div className="absolute inset-0 bg-white/80 backdrop-blur-[2px]" />
+        </div>
         
-        <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-20 items-center">
+        <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-20 items-center relative z-10">
           <div className="relative z-10">
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
