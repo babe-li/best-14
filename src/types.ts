@@ -118,14 +118,17 @@ export interface Result {
   feedback?: string;
 }
 
+export interface FeeItem {
+  id: string;
+  name: string;
+  amount: number;
+  term: 'Term 1' | 'Term 2' | 'Term 3' | 'Annual';
+}
+
 export interface FeeStructure {
   id: string;
   classId: string;
-  term: 'Term 1' | 'Term 2' | 'Term 3';
-  items: {
-    name: string;
-    amount: number;
-  }[];
+  items: FeeItem[];
   totalAmount: number;
 }
 

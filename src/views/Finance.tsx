@@ -83,7 +83,7 @@ export const Finance = () => {
   });
 
   const [editingStructure, setEditingStructure] = useState<FeeStructure | null>(null);
-  const [newFeeItem, setNewFeeItem] = useState({ name: '', amount: '' });
+  const [newFeeItem, setNewFeeItem] = useState({ name: '', amount: '', term: 'Term 1' as 'Term 1' | 'Term 2' | 'Term 3' | 'Annual' });
 
   // Payment Form State
   const [newPayment, setNewPayment] = useState({
@@ -241,10 +241,15 @@ export const Finance = () => {
 
   const addFeeItem = () => {
     if (!newFeeItem.name || !newFeeItem.amount || !editingStructure) return;
-    const items = [...editingStructure.items, { name: newFeeItem.name, amount: Number(newFeeItem.amount) }];
+    const items = [...editingStructure.items, { 
+      id: generateId(),
+      name: newFeeItem.name, 
+      amount: Number(newFeeItem.amount),
+      term: newFeeItem.term
+    }];
     const totalAmount = items.reduce((acc, i) => acc + i.amount, 0);
     setEditingStructure({ ...editingStructure, items, totalAmount });
-    setNewFeeItem({ name: '', amount: '' });
+    setNewFeeItem({ name: '', amount: '', term: 'Term 1' });
   };
 
   const removeFeeItem = (index: number) => {
@@ -254,12 +259,11 @@ export const Finance = () => {
     setEditingStructure({ ...editingStructure, items, totalAmount });
   };
 
-  const updateFeeItem = (index: number, name: string, amount: number) => {
+  const updateFeeItem = (index: number, name: string, amount: number, term: 'Term 1' | 'Term 2' | 'Term 3' | 'Annual') => {
     if (!editingStructure) return;
     const items = [...editingStructure.items];
-    // Sanitize amount to prevent NaN issues
     const sanitizedAmount = isNaN(amount) ? 0 : Math.max(0, amount);
-    items[index] = { name, amount: sanitizedAmount };
+    items[index] = { ...items[index], name, amount: sanitizedAmount, term };
     const totalAmount = items.reduce((acc, i) => acc + i.amount, 0);
     setEditingStructure({ ...editingStructure, items, totalAmount });
   };
@@ -362,7 +366,7 @@ export const Finance = () => {
             isAdmin && (
               <button 
                 onClick={() => {
-                  setEditingStructure({ id: generateId(), classId: '', term: 'Term 1', items: [], totalAmount: 0 });
+                  setEditingStructure({ id: generateId(), classId: '', items: [], totalAmount: 0 });
                   setIsFeeModalOpen(true);
                 }}
                 className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-indigo-600/20 hover:bg-indigo-700 transition-all"
@@ -695,7 +699,7 @@ export const Finance = () => {
                    {isAdmin && levelFees.length < 3 && (
                      <button 
                         onClick={() => {
-                          setEditingStructure({ id: generateId(), classId: level, term: 'Term 1', items: [], totalAmount: 0 });
+                          setEditingStructure({ id: generateId(), classId: level, items: [], totalAmount: 0 });
                           setIsFeeModalOpen(true);
                         }}
                         className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-transparent hover:border-indigo-100"
@@ -706,7 +710,14 @@ export const Finance = () => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {levelFees.map((structure) => (
+                   {levelFees.map((structure) => {
+                    const itemsByTerm = structure.items.reduce((acc, item) => {
+                      if (!acc[item.term]) acc[item.term] = [];
+                      acc[item.term].push(item);
+                      return acc;
+                    }, {} as Record<string, typeof structure.items>);
+
+                    return (
                     <motion.div 
                       layout
                       key={structure.id}
@@ -714,9 +725,9 @@ export const Finance = () => {
                     >
                       <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full -mr-12 -mt-12 blur-2xl" />
                       
-                      <div className="flex justify-between items-start mb-6 relative z-10">
-                        <div className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[9px] font-black uppercase tracking-widest border border-indigo-100">
-                          {structure.term}
+                      <div className="flex justify-between items-start mb-6 relative z-10 text-slate-400">
+                        <div className="text-[9px] font-black uppercase tracking-widest bg-slate-50 px-2 py-1 rounded">
+                          Aggregated Fees
                         </div>
                         {isAdmin && (
                           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -739,11 +750,18 @@ export const Finance = () => {
                         )}
                       </div>
 
-                      <div className="space-y-3 mb-8 relative z-10">
-                        {structure.items.map((item, idx) => (
-                          <div key={idx} className="flex justify-between items-center group/item p-1 hover:bg-slate-50 rounded-lg transition-colors">
-                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">{item.name}</span>
-                            <span className="text-[10px] font-bold text-slate-900">{formatCurrency(item.amount)}</span>
+                      <div className="space-y-6 mb-8 relative z-10">
+                        {Object.entries(itemsByTerm).map(([term, items]) => (
+                          <div key={term} className="space-y-2">
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{term}</p>
+                            <div className="space-y-1">
+                              {items.map((item, idx) => (
+                                <div key={idx} className="flex justify-between items-center group/item p-1 hover:bg-slate-50 rounded-lg transition-colors">
+                                  <span className="text-[10px] font-bold text-slate-600 uppercase tracking-tight">{item.name}</span>
+                                  <span className="text-[10px] font-bold text-slate-900">{formatCurrency(item.amount)}</span>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         ))}
                         {structure.items.length === 0 && (
@@ -756,28 +774,9 @@ export const Finance = () => {
                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Fiscal Total</p>
                            <span className="text-lg font-black text-slate-900 tracking-tight italic">{formatCurrency(structure.totalAmount)}</span>
                         </div>
-                        {isAdmin && (
-                          <button 
-                            onClick={() => {
-                              // Clone to another term if needed
-                              const nextTerm = structure.term === 'Term 1' ? 'Term 2' : structure.term === 'Term 2' ? 'Term 3' : 'Term 1';
-                              const clone: FeeStructure = {
-                                ...JSON.parse(JSON.stringify(structure)),
-                                id: generateId(),
-                                term: nextTerm as any
-                              };
-                              setEditingStructure(clone);
-                              setIsFeeModalOpen(true);
-                            }}
-                            className="p-2 bg-slate-50 text-slate-400 hover:text-indigo-600 rounded-xl border border-slate-100 transition-colors"
-                            title="Clone to next term"
-                          >
-                            <RefreshCw size={14} />
-                          </button>
-                        )}
                       </div>
                     </motion.div>
-                  ))}
+                    )})}
                   
                   {levelFees.length === 0 && (
                     <div className="col-span-full py-12 text-center bg-slate-50/50 rounded-3xl border-2 border-dashed border-slate-200 group hover:border-indigo-200 transition-colors">
@@ -788,7 +787,7 @@ export const Finance = () => {
                       {isAdmin && (
                         <button 
                            onClick={() => {
-                             setEditingStructure({ id: generateId(), classId: level, term: 'Term 1', items: [], totalAmount: 0 });
+                             setEditingStructure({ id: generateId(), classId: level, items: [], totalAmount: 0 });
                              setIsFeeModalOpen(true);
                            }}
                            className="px-6 py-3 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all shadow-sm"
@@ -924,7 +923,7 @@ export const Finance = () => {
                       structure.items.forEach(item => {
                         ledgerEntries.push({
                           date: structure.id.split('_')[1] || '2026-01-01', // Mocking date from ID if needed, or context
-                          description: `${item.name} (${structure.term})`,
+                          description: `${item.name} (${item.term})`,
                           type: 'debit',
                           amount: item.amount,
                           reference: 'FEE-ALLOC'
@@ -1051,34 +1050,19 @@ export const Finance = () => {
               </div>
 
               <form onSubmit={handleSaveFeeStructure} className="overflow-y-auto flex-1 p-8 space-y-8">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Target Academic Level</label>
-                    <select 
-                      required
-                      value={editingStructure.classId}
-                      onChange={(e) => setEditingStructure({...editingStructure, classId: e.target.value})}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 outline-none transition-all text-sm font-medium"
-                    >
-                      <option value="">Select Level...</option>
-                      {SCHOOL_CONFIG.academicLevels.map(lvl => (
-                        <option key={lvl} value={lvl}>{lvl}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Academic Term</label>
-                    <select 
-                      required
-                      value={editingStructure.term}
-                      onChange={(e) => setEditingStructure({...editingStructure, term: e.target.value as any})}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 outline-none transition-all text-sm font-medium"
-                    >
-                      <option>Term 1</option>
-                      <option>Term 2</option>
-                      <option>Term 3</option>
-                    </select>
-                  </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Target Academic Level</label>
+                  <select 
+                    required
+                    value={editingStructure.classId}
+                    onChange={(e) => setEditingStructure({...editingStructure, classId: e.target.value})}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 outline-none transition-all text-sm font-medium"
+                  >
+                    <option value="">Select Level...</option>
+                    {SCHOOL_CONFIG.academicLevels.map(lvl => (
+                      <option key={lvl} value={lvl}>{lvl}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="space-y-4">
@@ -1089,35 +1073,45 @@ export const Finance = () => {
                   
                   <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
                     {editingStructure.items.map((item, idx) => (
-                      <div key={idx} className="flex items-center gap-4 bg-white p-4 rounded-2xl border border-slate-100 group/item hover:border-indigo-200 hover:shadow-sm transition-all">
-                         <div className="flex-1 grid grid-cols-12 gap-3 items-center">
-                           <div className="col-span-7">
-                             <input 
-                               type="text" 
-                               value={item.name}
-                               onChange={(e) => updateFeeItem(idx, e.target.value, item.amount)}
-                               className="w-full bg-transparent border-none text-xs font-black text-slate-900 focus:ring-0 p-0 uppercase tracking-tight"
-                               placeholder="Item Description"
-                             />
-                           </div>
-                           <div className="col-span-5 flex items-center justify-end gap-2 border-l border-slate-100 pl-3">
-                             <span className="text-[8px] font-black text-slate-300 uppercase">TZS</span>
-                             <input 
-                               type="number" 
-                               value={item.amount}
-                               onChange={(e) => updateFeeItem(idx, item.name, Number(e.target.value))}
-                               className="w-full bg-transparent border-none text-xs font-black text-primary focus:ring-0 p-0 text-right italic"
-                               placeholder="0"
-                             />
-                           </div>
+                      <div key={idx} className="bg-white p-4 rounded-2xl border border-slate-100 group/item hover:border-indigo-200 hover:shadow-sm transition-all space-y-3">
+                         <div className="flex items-center justify-between">
+                            <input 
+                              type="text" 
+                              value={item.name}
+                              onChange={(e) => updateFeeItem(idx, e.target.value, item.amount, item.term)}
+                              className="bg-transparent border-none text-xs font-black text-slate-900 focus:ring-0 p-0 uppercase tracking-tight flex-1"
+                              placeholder="Item Description"
+                            />
+                            <button 
+                              type="button"
+                              onClick={() => removeFeeItem(idx)}
+                              className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                            >
+                              <Trash2 size={14} />
+                            </button>
                          </div>
-                         <button 
-                           type="button"
-                           onClick={() => removeFeeItem(idx)}
-                           className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover/item:opacity-100"
-                         >
-                           <Trash2 size={14} />
-                         </button>
+                         <div className="flex items-center gap-3">
+                            <div className="flex-1 flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
+                               <span className="text-[8px] font-black text-slate-300 uppercase">TZS</span>
+                               <input 
+                                 type="number" 
+                                 value={item.amount}
+                                 onChange={(e) => updateFeeItem(idx, item.name, Number(e.target.value), item.term)}
+                                 className="w-full bg-transparent border-none text-xs font-black text-primary focus:ring-0 p-0 text-right italic"
+                                 placeholder="0"
+                               />
+                            </div>
+                            <select 
+                              value={item.term}
+                              onChange={(e) => updateFeeItem(idx, item.name, item.amount, e.target.value as any)}
+                              className="flex-1 bg-slate-50 border border-slate-100 rounded-lg px-2 py-1.5 text-[9px] font-black uppercase tracking-widest text-slate-500 focus:ring-0 outline-none"
+                            >
+                               <option>Term 1</option>
+                               <option>Term 2</option>
+                               <option>Term 3</option>
+                               <option>Annual</option>
+                            </select>
+                         </div>
                       </div>
                     ))}
                     {editingStructure.items.length === 0 && (
@@ -1129,35 +1123,43 @@ export const Finance = () => {
 
                   <div className="p-5 bg-indigo-50/50 rounded-2xl border border-dashed border-indigo-200/50 space-y-4">
                     <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Append New Element</p>
-                    <div className="grid grid-cols-12 gap-3">
-                      <div className="col-span-6 relative">
-                        <input 
-                          type="text" 
-                          placeholder="Element Name"
-                          value={newFeeItem.name}
-                          onChange={(e) => setNewFeeItem({...newFeeItem, name: e.target.value})}
-                          className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:ring-4 focus:ring-indigo-500/5 outline-none transition-all uppercase tracking-tight"
-                        />
-                      </div>
-                      <div className="col-span-4 relative">
-                        <input 
-                          type="number" 
-                          placeholder="Amount"
-                          value={newFeeItem.amount}
-                          onChange={(e) => setNewFeeItem({...newFeeItem, amount: e.target.value})}
-                          className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:ring-4 focus:ring-indigo-500/5 outline-none transition-all italic text-right"
-                        />
-                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-300 uppercase pointer-events-none">TZS</div>
-                      </div>
-                      <div className="col-span-2">
-                         <button 
-                           type="button"
-                           onClick={addFeeItem}
-                           disabled={!newFeeItem.name || !newFeeItem.amount}
-                           className="w-full h-full bg-slate-900 text-white rounded-xl flex items-center justify-center hover:bg-black hover:scale-105 active:scale-95 transition-all shadow-lg shadow-slate-900/10 disabled:opacity-50 disabled:grayscale disabled:scale-100"
-                         >
-                           <Plus size={18} />
-                         </button>
+                    <div className="space-y-3">
+                      <input 
+                        type="text" 
+                        placeholder="Element Name"
+                        value={newFeeItem.name}
+                        onChange={(e) => setNewFeeItem({...newFeeItem, name: e.target.value})}
+                        className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:ring-4 focus:ring-indigo-500/5 outline-none transition-all uppercase tracking-tight"
+                      />
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 relative">
+                          <input 
+                            type="number" 
+                            placeholder="Amount"
+                            value={newFeeItem.amount}
+                            onChange={(e) => setNewFeeItem({...newFeeItem, amount: e.target.value})}
+                            className="w-full pl-12 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:ring-4 focus:ring-indigo-500/5 outline-none transition-all italic text-right"
+                          />
+                          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[8px] font-black text-slate-300 uppercase pointer-events-none">TZS</div>
+                        </div>
+                        <select 
+                          value={newFeeItem.term}
+                          onChange={(e) => setNewFeeItem({...newFeeItem, term: e.target.value as any})}
+                          className="flex-1 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 focus:ring-4 focus:ring-indigo-500/5 outline-none transition-all"
+                        >
+                           <option>Term 1</option>
+                           <option>Term 2</option>
+                           <option>Term 3</option>
+                           <option>Annual</option>
+                        </select>
+                        <button 
+                          type="button"
+                          onClick={addFeeItem}
+                          disabled={!newFeeItem.name || !newFeeItem.amount}
+                          className="bg-slate-900 text-white p-2.5 rounded-xl flex items-center justify-center hover:bg-black hover:scale-105 active:scale-95 transition-all shadow-lg shadow-slate-900/10 disabled:opacity-50 disabled:grayscale disabled:scale-100"
+                        >
+                          <Plus size={20} />
+                        </button>
                       </div>
                     </div>
                   </div>
