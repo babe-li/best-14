@@ -201,7 +201,7 @@ export const Exams = () => {
     
     candidates.forEach(student => {
       const results = db.results.filter(r => r.studentId === student.id);
-      const divData = calculateDivision(results, student.classId as AcademicLevel);
+      const divData = calculateDivision(results, student.classId as AcademicLevel, db.settings?.gradingScales);
       if (divData !== 'N/A') {
         distribution[divData.division] = (distribution[divData.division] || 0) + 1;
       }
@@ -478,7 +478,7 @@ export const Exams = () => {
     // Convert grading scale from NECTA utilities
     const getGrade = (marks: number, studentId: string) => {
       const student = db.students.find(s => s.id === studentId);
-      return calculateGrade(marks, (student?.classId as any) || 'Form 4');
+      return calculateGrade(marks, (student?.classId as any) || 'Form 4', db.settings?.gradingScales);
     };
 
     const newResults: Result[] = Object.entries(marksData).map(([studentId, marks]) => {
@@ -699,17 +699,6 @@ export const Exams = () => {
                 )}
               >
                 Analysis
-              </button>
-            )}
-            {isAdmin && (
-              <button 
-                onClick={() => setViewMode('grading')}
-                className={cn(
-                  "flex-1 md:flex-none px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap",
-                  viewMode === 'grading' ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
-                )}
-              >
-                Grading
               </button>
             )}
           </div>
@@ -1250,7 +1239,7 @@ export const Exams = () => {
                           .filter(s => s.status === 'active' && s.classId.startsWith('Form'))
                           .map(student => {
                             const studentResults = db.results.filter(r => r.studentId === student.id);
-                            const divData = calculateDivision(studentResults, student.classId as AcademicLevel);
+                            const divData = calculateDivision(studentResults, student.classId as AcademicLevel, db.settings?.gradingScales);
                             
                             if (divData === 'N/A') return null;
 
@@ -1391,15 +1380,15 @@ export const Exams = () => {
                             .sort((a, b) => {
                                const resultsA = db.results.filter(r => r.studentId === a.id);
                                const resultsB = db.results.filter(r => r.studentId === b.id);
-                               const divA = calculateDivision(resultsA, a.classId as AcademicLevel);
-                               const divB = calculateDivision(resultsB, b.classId as AcademicLevel);
+                               const divA = calculateDivision(resultsA, a.classId as AcademicLevel, db.settings?.gradingScales);
+                               const divB = calculateDivision(resultsB, b.classId as AcademicLevel, db.settings?.gradingScales);
                                const ptsA = divA === 'N/A' ? 100 : divA.points;
                                const ptsB = divB === 'N/A' ? 100 : divB.points;
                                return ptsA - ptsB;
                             })
                             .map(student => {
                                const results = db.results.filter(r => r.studentId === student.id);
-                               const divData = calculateDivision(results, student.classId as AcademicLevel);
+                               const divData = calculateDivision(results, student.classId as AcademicLevel, db.settings?.gradingScales);
                                
                                return (
                                  <tr key={student.id} className="group hover:scale-[1.01] transition-all">
@@ -1473,116 +1462,6 @@ export const Exams = () => {
                     </table>
                   </div>
                </div>
-            </div>
-          ) : viewMode === 'grading' ? (
-            <div className="space-y-6">
-              <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
-                <div className="flex items-center justify-between mb-8">
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-widest">NECTA Standard Grading Configuration</h3>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Manage score ranges and grade designations</p>
-                  </div>
-                  <AlertCircle size={20} className="text-primary" />
-                </div>
-
-                <div className="space-y-4">
-                  {(db.settings?.gradingScale || SCHOOL_CONFIG.gradingScale).map((item, index) => (
-                    <div key={index} className="grid grid-cols-4 gap-4 p-4 bg-slate-50 border border-slate-100 rounded-2xl items-end group transition-all hover:bg-white hover:border-primary/20 hover:shadow-lg">
-                      <div className="space-y-1.5">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Grade</label>
-                        <input 
-                          type="text" 
-                          value={item.grade}
-                          onChange={(e) => {
-                            const newScale = [...(db.settings.gradingScale || SCHOOL_CONFIG.gradingScale)];
-                            newScale[index] = { ...item, grade: e.target.value };
-                            storageService.saveDB({ ...db, settings: { ...db.settings, gradingScale: newScale } });
-                            setDb({ ...db, settings: { ...db.settings, gradingScale: newScale } });
-                          }}
-                          className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-widest outline-none focus:ring-4 focus:ring-primary/5 transition-all" 
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Min Score (%)</label>
-                        <input 
-                          type="number" 
-                          value={item.min}
-                          onChange={(e) => {
-                            const newScale = [...(db.settings.gradingScale || SCHOOL_CONFIG.gradingScale)];
-                            newScale[index] = { ...item, min: Number(e.target.value) };
-                            storageService.saveDB({ ...db, settings: { ...db.settings, gradingScale: newScale } });
-                            setDb({ ...db, settings: { ...db.settings, gradingScale: newScale } });
-                          }}
-                          className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-widest outline-none focus:ring-4 focus:ring-primary/5 transition-all" 
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Max Score (%)</label>
-                        <input 
-                          type="number" 
-                          value={item.max}
-                          onChange={(e) => {
-                            const newScale = [...(db.settings.gradingScale || SCHOOL_CONFIG.gradingScale)];
-                            newScale[index] = { ...item, max: Number(e.target.value) };
-                            storageService.saveDB({ ...db, settings: { ...db.settings, gradingScale: newScale } });
-                            setDb({ ...db, settings: { ...db.settings, gradingScale: newScale } });
-                          }}
-                          className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-widest outline-none focus:ring-4 focus:ring-primary/5 transition-all" 
-                        />
-                      </div>
-                      <div className="space-y-1.5 flex gap-2 items-end">
-                        <div className="flex-1 space-y-1.5">
-                          <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1">Remark</label>
-                          <input 
-                            type="text" 
-                            value={item.remark}
-                            onChange={(e) => {
-                              const newScale = [...(db.settings.gradingScale || SCHOOL_CONFIG.gradingScale)];
-                              newScale[index] = { ...item, remark: e.target.value };
-                              storageService.saveDB({ ...db, settings: { ...db.settings, gradingScale: newScale } });
-                              setDb({ ...db, settings: { ...db.settings, gradingScale: newScale } });
-                            }}
-                            className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-widest outline-none focus:ring-4 focus:ring-primary/5 transition-all" 
-                          />
-                        </div>
-                        <button 
-                          onClick={() => {
-                            const newScale = (db.settings.gradingScale || SCHOOL_CONFIG.gradingScale).filter((_, i) => i !== index);
-                            storageService.saveDB({ ...db, settings: { ...db.settings, gradingScale: newScale } });
-                            setDb({ ...db, settings: { ...db.settings, gradingScale: newScale } });
-                          }}
-                          className="p-2.5 text-red-400 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
-                        >
-                          <X size={18} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-
-                  <button 
-                    onClick={() => {
-                      const newLevel = { grade: 'E', min: 0, max: 0, remark: 'Needs Improvement' };
-                      const newScale = [...(db.settings.gradingScale || SCHOOL_CONFIG.gradingScale), newLevel];
-                      storageService.saveDB({ ...db, settings: { ...db.settings, gradingScale: newScale } });
-                      setDb({ ...db, settings: { ...db.settings, gradingScale: newScale } });
-                    }}
-                    className="w-full py-4 border-2 border-dashed border-slate-100 rounded-2xl text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:border-primary hover:text-primary hover:bg-primary/5 transition-all flex items-center justify-center gap-2"
-                  >
-                    <Plus size={16} />
-                    Define New Grade Level
-                  </button>
-                </div>
-
-                <div className="mt-8 p-4 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-start gap-4">
-                  <CheckCircle2 size={20} className="text-emerald-500 shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="text-[10px] font-bold text-emerald-900 uppercase tracking-widest">Automatic Synchronization</h4>
-                    <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest opacity-80 mt-1 italic">
-                      Any changes made here will be instantly applied to all future mark entries and result calculations. Existing results will retain their original grades unless re-submitted.
-                    </p>
-                  </div>
-                </div>
-              </div>
             </div>
           ) : (
             <div className="space-y-6">
@@ -1977,7 +1856,7 @@ export const Exams = () => {
                                        normMark >= 45 ? "bg-amber-600" :
                                        "bg-red-600"
                                      )}>
-                                       Grade {calculateGrade(normMark, selectedExam.classId as AcademicLevel)}
+                                       Grade {calculateGrade(normMark, selectedExam.classId as AcademicLevel, db.settings?.gradingScales)}
                                      </span>
                                   )}
                                   <div className="flex items-center gap-2">

@@ -188,6 +188,21 @@ export interface Task {
   completionPercentage: number;
 }
 
+export interface GradingRange {
+  grade: string;
+  min: number;
+  max: number;
+  remark: string;
+  points: number;
+}
+
+export interface GradingScale {
+  id: string;
+  name: string;
+  ranges: GradingRange[];
+  applicableLevels: AcademicLevel[];
+}
+
 export interface TimetableEntry {
   id: string;
   day: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';

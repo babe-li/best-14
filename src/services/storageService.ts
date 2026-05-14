@@ -3,19 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { type Class, type Student, type User, type FeeStructure, type Payment, type Exam, type Result, type Message, type Attendance, type Task, type Subject, type PermissionRequest, type Announcement, type TimetableEntry } from '../types';
+import { type Class, type Student, type User, type FeeStructure, type Payment, type Exam, type Result, type Message, type Attendance, type Task, type Subject, type PermissionRequest, type Announcement, type TimetableEntry, type GradingRange, type GradingScale } from '../types';
 import { SCHOOL_CONFIG } from '../constants';
 
 const DB_KEY = 'sms_tanzania_db';
 
 export interface SystemSettings {
   sections: string[];
-  gradingScale: {
-    grade: string;
-    min: number;
-    max: number;
-    remark: string;
-  }[];
+  gradingScales: GradingScale[];
 }
 
 interface DB {
@@ -262,7 +257,32 @@ const INITIAL_DB: DB = {
   ],
   settings: {
     sections: ['A', 'B', 'C', 'Gold', 'Silver'],
-    gradingScale: SCHOOL_CONFIG.gradingScale
+    gradingScales: [
+      {
+        id: 'scale_secondary_default',
+        name: 'NECTA Secondary Standard',
+        applicableLevels: ['Form 1', 'Form 2', 'Form 3', 'Form 4'],
+        ranges: SCHOOL_CONFIG.nectaScales.secondary.map(s => ({
+          grade: s.grade,
+          min: s.min,
+          max: s.max,
+          remark: s.remark,
+          points: s.points
+        }))
+      },
+      {
+        id: 'scale_primary_default',
+        name: 'NECTA Primary Standard',
+        applicableLevels: [],
+        ranges: SCHOOL_CONFIG.nectaScales.primary.map(s => ({
+          grade: s.grade,
+          min: s.min,
+          max: s.max,
+          remark: s.remark,
+          points: s.points
+        }))
+      }
+    ]
   },
   notifications: [],
   permissions: [

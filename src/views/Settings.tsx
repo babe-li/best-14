@@ -22,9 +22,13 @@ import {
   Fingerprint,
   Plus,
   Trash2,
-  Layers
+  Layers,
+  GraduationCap,
+  X,
+  ChevronRight,
+  ClipboardCheck
 } from 'lucide-react';
-import { storageService } from '../services/storageService';
+import { storageService, type GradingScale, type GradingRange } from '../services/storageService';
 import { SCHOOL_CONFIG } from '../constants';
 import { cn } from '../lib/utils';
 
@@ -33,7 +37,10 @@ export const Settings = () => {
   const [status, setStatus] = useState<string | null>(null);
   const [is2FALoading, setIs2FALoading] = useState(false);
   const [sections, setSections] = useState<string[]>([]);
+  const [gradingScales, setGradingScales] = useState<GradingScale[]>([]);
   const [newSection, setNewSection] = useState('');
+  const [isGradingModalOpen, setIsGradingModalOpen] = useState(false);
+  const [editingScale, setEditingScale] = useState<Partial<GradingScale> | null>(null);
 
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [role, setRole] = useState<any>('teacher');
@@ -44,6 +51,7 @@ export const Settings = () => {
   useEffect(() => {
     const db = storageService.getDB();
     setSections(db.settings?.sections || ['A', 'B', 'C']);
+    setGradingScales(db.settings?.gradingScales || []);
   }, []);
 
   const addSection = () => {
@@ -119,6 +127,78 @@ export const Settings = () => {
     storageService.setCurrentUser(updatedUser);
     setCurrentUser(updatedUser);
     setStatus('Password updated successfully. Account is now verified.');
+  };
+
+  const handleSaveGradingScale = () => {
+    if (!editingScale?.name) return;
+    
+    const db = storageService.getDB();
+    const newScale: GradingScale = {
+      id: editingScale.id || `scale_${Date.now()}`,
+      name: editingScale.name,
+      ranges: editingScale.ranges || [],
+      applicableLevels: editingScale.applicableLevels || []
+    };
+
+    let updatedScales: GradingScale[];
+    if (editingScale.id) {
+      updatedScales = (db.settings.gradingScales || []).map(s => s.id === editingScale.id ? newScale : s);
+    } else {
+      updatedScales = [...(db.settings.gradingScales || []), newScale];
+    }
+
+    storageService.saveDB({
+      ...db,
+      settings: { ...db.settings, gradingScales: updatedScales }
+    });
+    setGradingScales(updatedScales);
+    setIsGradingModalOpen(false);
+    setEditingScale(null);
+    setStatus(`Grading scale "${newScale.name}" has been synchronized.`);
+  };
+
+  const deleteGradingScale = (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this grading scale?')) return;
+    const db = storageService.getDB();
+    const updatedScales = (db.settings.gradingScales || []).filter(s => s.id !== id);
+    storageService.saveDB({
+      ...db,
+      settings: { ...db.settings, gradingScales: updatedScales }
+    });
+    setGradingScales(updatedScales);
+    setStatus('Grading scale removed from system.');
+  };
+
+  const addRange = () => {
+    setEditingScale(prev => ({
+      ...prev,
+      ranges: [...(prev?.ranges || []), { grade: '', min: 0, max: 0, remark: '', points: 5 }]
+    }));
+  };
+
+  const removeRange = (index: number) => {
+    setEditingScale(prev => ({
+      ...prev,
+      ranges: (prev?.ranges || []).filter((_, i) => i !== index)
+    }));
+  };
+
+  const updateRange = (index: number, field: keyof GradingRange, value: any) => {
+    setEditingScale(prev => {
+      const ranges = [...(prev?.ranges || [])];
+      ranges[index] = { ...ranges[index], [field]: field === 'grade' || field === 'remark' ? value : Number(value) };
+      return { ...prev, ranges };
+    });
+  };
+
+  const toggleLevelSelection = (level: string) => {
+    setEditingScale(prev => {
+      const current = prev?.applicableLevels || [];
+      const updated = current.includes(level) 
+        ? current.filter(l => l !== level)
+        : [...current, level];
+      return { ...prev, applicableLevels: updated };
+    });
   };
 
   return (
@@ -201,6 +281,74 @@ export const Settings = () => {
 
           <p className="mt-8 text-[10px] text-slate-400 leading-relaxed font-medium italic">
             * Define the streams (e.g. A, B, North, South) that can exist within each level. These will be available for selection when categorizing students.
+          </p>
+        </div>
+
+        {/* Grading Protocols Section */}
+        <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden group">
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-xl flex items-center justify-center">
+                <GraduationCap size={24} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-tight">Grading Protocols</h3>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Define Evaluation Matrix</p>
+              </div>
+            </div>
+            <button 
+              onClick={() => {
+                setEditingScale({ name: '', ranges: [], applicableLevels: [] });
+                setIsGradingModalOpen(true);
+              }}
+              className="p-2 transition-all hover:bg-slate-50 text-slate-400 hover:text-primary rounded-lg"
+            >
+              <Plus size={20} />
+            </button>
+          </div>
+          
+          <div className="space-y-4">
+            {gradingScales.map((scale) => (
+              <div key={scale.id} className="p-4 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between group/item">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-white border border-slate-200 rounded-lg flex items-center justify-center">
+                    <ClipboardCheck size={20} className="text-slate-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-black text-slate-900 uppercase tracking-tight">{scale.name}</p>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                      {scale.ranges.length} RANGES • {scale.applicableLevels.length} LEVELS
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 opacity-0 group-hover/item:opacity-100 transition-all">
+                  <button 
+                    onClick={() => {
+                      setEditingScale(scale);
+                      setIsGradingModalOpen(true);
+                    }}
+                    className="p-2 text-slate-400 hover:text-primary transition-colors"
+                  >
+                    <SettingsIcon size={16} />
+                  </button>
+                  <button 
+                    onClick={() => deleteGradingScale(scale.id)}
+                    className="p-2 text-slate-300 hover:text-red-500 transition-colors"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+            ))}
+            {gradingScales.length === 0 && (
+              <div className="text-center py-6 border-2 border-dashed border-slate-100 rounded-2xl">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">No custom scales initialized.</p>
+              </div>
+            )}
+          </div>
+
+          <p className="mt-8 text-[10px] text-slate-400 leading-relaxed font-medium italic">
+            * Define custom grading ranges for different academic levels (e.g. Primary vs. Secondary). These scales determine the letter grade assigned to numerical exam marks.
           </p>
         </div>
 
@@ -511,6 +659,165 @@ export const Settings = () => {
           </div>
         </div>
       </div>
+
+      {/* Grading Scale Modal */}
+      <AnimatePresence>
+        {isGradingModalOpen && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsGradingModalOpen(false)}
+              className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100]"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="fixed inset-4 m-auto w-full max-w-2xl h-fit max-h-[90vh] bg-white rounded-[32px] shadow-2xl z-[110] flex flex-col overflow-hidden"
+            >
+              <div className="p-8 border-b border-slate-100 flex items-center justify-between shrink-0">
+                <div>
+                  <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Grading Protocol Designer</h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Configure mark-to-grade transition logic</p>
+                </div>
+                <button onClick={() => setIsGradingModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-all">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-8 overflow-y-auto space-y-8 text-left">
+                <div className="space-y-6 text-left">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Protocol Name</label>
+                    <input 
+                      type="text" 
+                      value={editingScale?.name || ''}
+                      onChange={(e) => setEditingScale(prev => ({ ...prev, name: e.target.value }))}
+                      placeholder="e.g. NECTA Secondary Matrix"
+                      className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none text-sm font-bold transition-all"
+                    />
+                  </div>
+
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Applicable Academic Levels</label>
+                    <div className="flex flex-wrap gap-2">
+                       {SCHOOL_CONFIG.academicLevels.map(level => (
+                         <button 
+                           key={level}
+                           onClick={() => toggleLevelSelection(level)}
+                           className={cn(
+                             "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border",
+                             editingScale?.applicableLevels?.includes(level)
+                              ? "bg-slate-900 text-white border-slate-900 shadow-lg shadow-slate-900/20"
+                              : "bg-white text-slate-400 border-slate-200 hover:border-slate-300"
+                           )}
+                         >
+                           {level}
+                         </button>
+                       ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Scaling Ranges</label>
+                    <button 
+                      onClick={addRange}
+                      className="text-[10px] font-black text-primary uppercase tracking-widest hover:underline"
+                    >
+                      + Add Range
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {editingScale?.ranges?.map((range, index) => (
+                      <div key={index} className="grid grid-cols-12 gap-3 items-end p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                        <div className="col-span-1 space-y-1">
+                          <label className="text-[9px] font-bold text-slate-400 uppercase text-left block">Grade</label>
+                          <input 
+                            type="text" 
+                            value={range.grade}
+                            onChange={(e) => updateRange(index, 'grade', e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-black uppercase outline-none focus:border-primary"
+                          />
+                        </div>
+                        <div className="col-span-2 space-y-1">
+                          <label className="text-[9px] font-bold text-slate-400 uppercase text-left block">Min %</label>
+                          <input 
+                            type="number" 
+                            value={range.min}
+                            onChange={(e) => updateRange(index, 'min', e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-primary"
+                          />
+                        </div>
+                        <div className="col-span-2 space-y-1">
+                          <label className="text-[9px] font-bold text-slate-400 uppercase text-left block">Max %</label>
+                          <input 
+                            type="number" 
+                            value={range.max}
+                            onChange={(e) => updateRange(index, 'max', e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-primary"
+                          />
+                        </div>
+                        <div className="col-span-2 space-y-1">
+                          <label className="text-[9px] font-bold text-slate-400 uppercase text-left block">Points</label>
+                          <input 
+                            type="number" 
+                            value={range.points}
+                            onChange={(e) => updateRange(index, 'points', e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-primary"
+                          />
+                        </div>
+                        <div className="col-span-4 space-y-1">
+                          <label className="text-[9px] font-bold text-slate-400 uppercase text-left block">Descriptor</label>
+                          <input 
+                            type="text" 
+                            value={range.remark}
+                            onChange={(e) => updateRange(index, 'remark', e.target.value)}
+                            placeholder="e.g. Excellent"
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-primary"
+                          />
+                        </div>
+                        <div className="col-span-1 pb-1">
+                          <button 
+                            onClick={() => removeRange(index)}
+                            className="w-full aspect-square flex items-center justify-center text-slate-300 hover:text-red-500 transition-colors"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {(!editingScale?.ranges || editingScale.ranges.length === 0) && (
+                      <div className="text-center py-8 bg-slate-50 border border-dashed border-slate-200 rounded-2xl">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">No ranges defined. Click 'Add Range' to begin.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-8 bg-slate-50 border-t border-slate-100 flex gap-4 shrink-0">
+                <button 
+                  onClick={handleSaveGradingScale}
+                  className="flex-1 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-slate-900/10 hover:bg-black transition-all"
+                >
+                  Save Protocol
+                </button>
+                <button 
+                  onClick={() => setIsGradingModalOpen(false)}
+                  className="flex-1 py-4 bg-white text-slate-400 border border-slate-200 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all"
+                >
+                  Discard
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

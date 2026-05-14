@@ -4,14 +4,15 @@
  */
 
 import { SCHOOL_CONFIG } from '../constants';
-import { type AcademicLevel, type Result } from '../types';
+import { type AcademicLevel, type Result, type GradingScale } from '../types';
 
 export const getGradeScale = (_level: AcademicLevel) => {
   return SCHOOL_CONFIG.nectaScales.secondary;
 };
 
-export const calculateGrade = (marks: number, level: AcademicLevel) => {
-  const scale = getGradeScale(level);
+export const calculateGrade = (marks: number, level: AcademicLevel, customScales?: GradingScale[]) => {
+  const applicableScale = customScales?.find(s => s.applicableLevels.includes(level));
+  const scale = applicableScale ? applicableScale.ranges : getGradeScale(level);
   for (const item of scale) {
     if (marks >= item.min && marks <= item.max) {
       return item.grade;
@@ -20,8 +21,9 @@ export const calculateGrade = (marks: number, level: AcademicLevel) => {
   return 'F';
 };
 
-export const calculatePoints = (marks: number, level: AcademicLevel) => {
-  const scale = getGradeScale(level);
+export const calculatePoints = (marks: number, level: AcademicLevel, customScales?: GradingScale[]) => {
+  const applicableScale = customScales?.find(s => s.applicableLevels.includes(level));
+  const scale = applicableScale ? applicableScale.ranges : getGradeScale(level);
   for (const item of scale) {
     if (marks >= item.min && marks <= item.max) {
       return item.points;
@@ -38,14 +40,14 @@ export interface NECTAResult {
   credits: number; // Number of Cs or better
 }
 
-export const calculateDivision = (results: Result[], level: AcademicLevel): NECTAResult | 'N/A' => {
+export const calculateDivision = (results: Result[], level: AcademicLevel, customScales?: GradingScale[]): NECTAResult | 'N/A' => {
   if (!level.startsWith('Form')) return 'N/A';
 
   // Map to points and grades
   const subjectPoints = results.map(r => ({
     marks: r.marks,
-    points: calculatePoints(r.marks, level),
-    grade: calculateGrade(r.marks, level)
+    points: calculatePoints(r.marks, level, customScales),
+    grade: calculateGrade(r.marks, level, customScales)
   })).sort((a, b) => a.points - b.points);
 
   // NECTA O-Level uses best 7 subjects for points
