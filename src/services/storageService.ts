@@ -87,7 +87,44 @@ const INITIAL_DB: DB = {
   classes: [],
   fees: [],
   payments: [],
-  exams: [],
+  exams: [
+    {
+      id: 'exam_1',
+      title: 'Mid-Term',
+      term: 1,
+      year: 2026,
+      classId: 'Form 4',
+      subjectId: 'Mathematics',
+      maxMarks: 100,
+      date: '2026-05-15',
+      reminderDays: 3,
+      reminderType: 'both'
+    },
+    {
+      id: 'exam_2',
+      title: 'CA',
+      term: 1,
+      year: 2026,
+      classId: 'Form 2',
+      subjectId: 'English',
+      maxMarks: 50,
+      date: '2026-05-18',
+      reminderDays: 1,
+      reminderType: 'in-app'
+    },
+    {
+      id: 'exam_3',
+      title: 'Terminal',
+      term: 1,
+      year: 2026,
+      classId: 'Form 4',
+      subjectId: 'Physics',
+      maxMarks: 100,
+      date: '2026-05-20',
+      reminderDays: 7,
+      reminderType: 'email'
+    }
+  ],
   results: [],
   messages: [],
   announcements: [
