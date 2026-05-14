@@ -49,6 +49,11 @@ export const SCHOOL_CONFIG = {
   academicLevels: [
     'Form 1', 'Form 2', 'Form 3', 'Form 4'
   ] as const,
+  paymentDetails: {
+    accountNumber: "0657206083",
+    accountName: "Miyomboni Secondary School",
+    provider: "Tigo Pesa"
+  },
   defaultSubjects: [
     'Mathematics', 'English', 'Kiswahili', 'Social Studies', 
     'Science and Technology', 'Civics', 'Vocational Skills',

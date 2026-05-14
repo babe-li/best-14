@@ -50,6 +50,9 @@ export interface Announcement {
   timestamp: string;
   priority: 'low' | 'medium' | 'high';
   targetRoles: UserRole[]; // Who can see this
+  attachment?: string;
+  attachmentName?: string;
+  attachmentType?: string;
 }
 
 export type AcademicLevel = 

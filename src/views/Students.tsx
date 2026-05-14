@@ -1022,7 +1022,11 @@ export const Students = () => {
                             )}
                           </div>
                           <div className="flex items-center gap-2">
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">{student.gender}</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                      {student.status === 'active' ? 'Active Enrollment' : 
+                       student.status === 'alumni' ? 'Graduate / Alumni' : 
+                       'Student Transferred'}
+                    </p>
                             {student.controlNumber && (
                               <span className="text-[8px] font-bold text-primary bg-primary/5 px-1 rounded border border-primary/10 tracking-widest">#{student.controlNumber}</span>
                             )}
@@ -1337,7 +1341,6 @@ export const Students = () => {
                       <option value="active">Active</option>
                       <option value="alumni">Alumni</option>
                       <option value="transferred">Transferred</option>
-                      <option value="suspended">Suspended</option>
                     </select>
                   </div>
                 </div>

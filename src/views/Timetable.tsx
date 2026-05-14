@@ -372,42 +372,40 @@ export const Timetable = () => {
           </div>
 
           <div className="flex items-center gap-3">
-            {viewMode === 'class' ? (
-              <select 
-                value={selectedClass}
-                onChange={(e) => setSelectedClass(e.target.value)}
-                className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-widest outline-none focus:ring-4 focus:ring-primary/5 transition-all outline-none"
-              >
-                <option value="all">All Classes</option>
-                {db.classes.map(c => (
-                  <option key={c.id} value={c.id}>{c.name} {c.section}</option>
-                ))}
-              </select>
-            ) : (
-              <select 
-                value={selectedTeacher}
-                onChange={(e) => setSelectedTeacher(e.target.value)}
-                className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-widest outline-none focus:ring-4 focus:ring-primary/5 transition-all"
-              >
-                <option value="">Select Teacher...</option>
-                {db.users.filter(u => u.role === 'teacher' || u.role === 'admin').map(u => (
-                  <option key={u.id} value={u.id}>{u.name}</option>
-                ))}
-              </select>
-            )}
+            {/* View Mode Contextual Filters */}
+            <div className="flex items-center gap-3">
+              <div className="relative group">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none group-focus-within:text-primary transition-colors">
+                  <BookOpen size={14} />
+                </div>
+                <select 
+                  value={selectedClass}
+                  onChange={(e) => setSelectedClass(e.target.value)}
+                  className="pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary transition-all appearance-none min-w-[140px]"
+                >
+                  <option value="all">All Classes</option>
+                  {db.classes.map(c => (
+                    <option key={c.id} value={c.id}>{c.name} {c.section}</option>
+                  ))}
+                </select>
+              </div>
 
-            {viewMode === 'teacher' && selectedTeacher && (
-              <select 
-                value={selectedClass}
-                onChange={(e) => setSelectedClass(e.target.value)}
-                className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-widest outline-none focus:ring-4 focus:ring-primary/5 transition-all"
-              >
-                <option value="all">All My Classes</option>
-                {db.classes.map(c => (
-                  <option key={c.id} value={c.id}>{c.name} {c.section}</option>
-                ))}
-              </select>
-            )}
+              <div className="relative group">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none group-focus-within:text-primary transition-colors">
+                  <UserIcon size={14} />
+                </div>
+                <select 
+                  value={selectedTeacher}
+                  onChange={(e) => setSelectedTeacher(e.target.value)}
+                  className="pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary transition-all appearance-none min-w-[160px]"
+                >
+                  <option value="">All Teachers</option>
+                  {db.users.filter(u => u.role === 'teacher' || u.role === 'admin').map(u => (
+                    <option key={u.id} value={u.id}>{u.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
 
             {currentUser?.role === 'teacher' && selectedTeacher !== currentUser.id && (
               <button 
@@ -487,23 +485,23 @@ export const Timetable = () => {
                     )}
                   </div>
 
-                  <h4 className="text-xs font-black text-slate-900 mb-1 truncate flex items-center justify-between">
+                  <h4 className="text-xs font-black text-slate-900 mb-1.5 truncate flex items-center justify-between">
                     <span>{getSubjectName(entry.subjectId)}</span>
-                    {selectedClass === 'all' && (
-                      <span className="text-[8px] text-primary bg-primary/5 px-1.5 py-0.5 rounded border border-primary/10">
-                        {db.classes.find(c => c.id === entry.classId)?.name}
-                      </span>
-                    )}
+                    <span className="text-[8px] text-primary bg-primary/5 px-1.5 py-0.5 rounded border border-primary/10">
+                      {db.classes.find(c => c.id === entry.classId)?.name}
+                    </span>
                   </h4>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 text-[9px] font-bold text-slate-400">
-                      <UserIcon size={10} className="text-slate-300" />
-                      {getTeacherName(entry.teacherId)}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2 px-2 py-1 bg-slate-50 border border-slate-100 rounded-lg group-hover:bg-white transition-colors">
+                      <UserIcon size={12} className="text-primary" />
+                      <span className="text-[10px] font-black text-slate-700 uppercase truncate">
+                        {getTeacherName(entry.teacherId)}
+                      </span>
                     </div>
                     {entry.room && (
-                      <div className="flex items-center gap-2 text-[9px] font-bold text-slate-400">
+                      <div className="flex items-center gap-2 text-[9px] font-bold text-slate-400 px-2">
                         <MapPin size={10} className="text-slate-300" />
-                        Room: {entry.room}
+                        ROOM: {entry.room}
                       </div>
                     )}
                   </div>

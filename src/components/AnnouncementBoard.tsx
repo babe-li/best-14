@@ -15,7 +15,10 @@ import {
   AlertCircle,
   Bell,
   Trash2,
-  Filter
+  Filter,
+  FileText,
+  Paperclip,
+  Download
 } from 'lucide-react';
 import { storageService } from '../services/storageService';
 import { type Announcement, type User as UserType, type UserRole } from '../types';
@@ -29,7 +32,10 @@ export const AnnouncementBoard = () => {
     title: '',
     content: '',
     priority: 'medium' as 'low' | 'medium' | 'high',
-    targetRoles: ['student', 'teacher', 'parent'] as UserRole[]
+    targetRoles: ['student', 'teacher', 'parent'] as UserRole[],
+    attachment: undefined as string | undefined,
+    attachmentName: undefined as string | undefined,
+    attachmentType: undefined as string | undefined
   });
 
   if (!currentUser) return null;
@@ -65,8 +71,32 @@ export const AnnouncementBoard = () => {
       title: '',
       content: '',
       priority: 'medium',
-      targetRoles: ['student', 'teacher', 'parent']
+      targetRoles: ['student', 'teacher', 'parent'],
+      attachment: undefined,
+      attachmentName: undefined,
+      attachmentType: undefined
     });
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        alert("File too large. Max 2MB.");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setNewAnnouncement(prev => ({
+          ...prev,
+          attachment: event.target?.result as string,
+          attachmentName: file.name,
+          attachmentType: file.type
+        }));
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleDelete = (id: string) => {
@@ -132,9 +162,34 @@ export const AnnouncementBoard = () => {
               </div>
               
               <h3 className="text-sm font-bold text-slate-900 mb-2 leading-tight">{announcement.title}</h3>
-              <p className="text-xs text-slate-500 leading-relaxed mb-6 font-medium line-clamp-3">
+              <p className="text-xs text-slate-500 leading-relaxed mb-4 font-medium line-clamp-3">
                 {announcement.content}
               </p>
+
+              {announcement.attachment && (
+                <div className="mb-6 p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between group/file">
+                  <div className="flex items-center gap-3 overflow-hidden">
+                    <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-indigo-600 shadow-sm">
+                      <FileText size={16} />
+                    </div>
+                    <div className="overflow-hidden">
+                      <p className="text-[10px] font-bold text-slate-900 truncate">
+                        {announcement.attachmentName || 'Attachment'}
+                      </p>
+                      <p className="text-[8px] font-bold text-slate-400 truncate uppercase mt-0.5">
+                        {announcement.attachmentType?.split('/')[1] || 'FILE'}
+                      </p>
+                    </div>
+                  </div>
+                  <a 
+                    href={announcement.attachment} 
+                    download={announcement.attachmentName}
+                    className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-lg transition-all"
+                  >
+                    <Download size={14} />
+                  </a>
+                </div>
+              )}
 
               <div className="mt-auto flex items-center justify-between pt-4 border-t border-slate-50">
                 <div className="flex items-center gap-2">
@@ -227,7 +282,30 @@ export const AnnouncementBoard = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 px-1">Target Audience</label>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 px-1">Attachment (Optional)</label>
+                    <div className="relative">
+                      <input 
+                        type="file"
+                        onChange={handleFileChange}
+                        className="hidden"
+                        id="announcement-file"
+                      />
+                      <label 
+                        htmlFor="announcement-file"
+                        className={cn(
+                          "w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 px-4 text-sm font-medium flex items-center gap-2 cursor-pointer hover:bg-slate-100 transition-all truncate",
+                          newAnnouncement.attachment ? "text-indigo-600" : "text-slate-400"
+                        )}
+                      >
+                        <Paperclip size={14} />
+                        {newAnnouncement.attachmentName || "Choose file..."}
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 px-1">Target Audience</label>
                     <div className="flex flex-wrap gap-2">
                        {['student', 'teacher', 'parent'].map((role) => (
                          <button
@@ -255,7 +333,6 @@ export const AnnouncementBoard = () => {
                        ))}
                     </div>
                   </div>
-                </div>
 
                 <button 
                   type="submit"

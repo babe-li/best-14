@@ -5,6 +5,7 @@
 
 import { storageService } from './storageService';
 import { User, Student, Exam } from '../types';
+import { SCHOOL_CONFIG } from '../constants';
 
 export enum NotificationType {
   NEW_MESSAGE = 'NEW_MESSAGE',
@@ -89,7 +90,7 @@ export const notificationService = {
         to: email,
         type: NotificationType.PAYMENT_RECEIVED,
         subject: `Payment Confirmation: ${student.name}`,
-        body: `Salutations,\n\nWe have successfully received a payment of TZS ${amount.toLocaleString()} for ${student.name} (Admission: ${student.admissionNo}).\n\nNew Fee Balance: TZS ${student.feeBalance.toLocaleString()}.\n\nThank you for choosing our school.`
+        body: `Salutations,\n\nWe have successfully received a payment of TZS ${amount.toLocaleString()} for ${student.name} (Admission: ${student.admissionNo}).\n\nThis payment was processed to account: ${SCHOOL_CONFIG.paymentDetails.accountNumber} (${SCHOOL_CONFIG.paymentDetails.accountName}).\n\nNew Fee Balance: TZS ${student.feeBalance.toLocaleString()}.\n\nThank you for choosing our school.`
       });
     }
   },

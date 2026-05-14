@@ -146,6 +146,13 @@ export const Finance = () => {
     setStudents(updatedStudents);
     setPayments(updatedPayments);
     setIsRecordModalOpen(false);
+    setSelectedPayment(payment);
+    setIsReceiptModalOpen(true);
+    
+    if (isParent) {
+      alert(`Success! Your payment of TZS ${payment.amount.toLocaleString()} has been received. A confirmation has been sent to your registered email/phone.`);
+    }
+
     setNewPayment({ studentId: '', amount: '', method: 'M-Pesa' });
   };
 
@@ -189,11 +196,15 @@ export const Finance = () => {
 
       const updatedPayments = [payment, ...db.payments];
       storageService.saveDB({ ...db, students: updatedStudents, payments: updatedPayments });
+      
+      alert(`Electronic Payment Success!\nAccount: ${SCHOOL_CONFIG.paymentDetails.accountNumber}\nAmount: TZS ${payment.amount.toLocaleString()}\nStudent: ${student.name}\nA message has been sent to the parent.`);
 
       setStudents(updatedStudents);
       setPayments(updatedPayments);
       setSimulating(false);
       setIsSimulatorOpen(false);
+      setSelectedPayment(payment);
+      setIsReceiptModalOpen(true);
       setWebhookData({ controlNumber: '', amount: '', provider: 'Vodacom M-Pesa' });
     }, 1500);
   };
@@ -298,6 +309,19 @@ export const Finance = () => {
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Fee Management</h1>
           <p className="text-slate-400 text-sm font-medium tracking-tight">Revenue tracking & fee architecture.</p>
         </div>
+        
+        {isParent && (
+          <div className="flex-1 lg:max-w-md bg-emerald-50 border border-emerald-100 rounded-2xl p-4 flex items-center gap-4">
+            <div className="w-10 h-10 bg-emerald-500 text-white rounded-xl flex items-center justify-center shrink-0">
+               <Smartphone size={20} />
+            </div>
+            <div>
+               <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Official Payment Account</p>
+               <p className="text-sm font-black text-slate-900 font-mono">{SCHOOL_CONFIG.paymentDetails.accountNumber}</p>
+               <p className="text-[10px] font-bold text-emerald-600/80 uppercase tracking-tight">{SCHOOL_CONFIG.paymentDetails.provider} - {SCHOOL_CONFIG.paymentDetails.accountName}</p>
+            </div>
+          </div>
+        )}
         
         <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl overflow-x-auto no-scrollbar scroll-smooth">
           <button 
@@ -1222,7 +1246,7 @@ export const Finance = () => {
                     External API Signal
                   </p>
                   <p className="text-[10px] text-amber-600 leading-tight">
-                    This simulator mimics an incoming HTTP POST request from a payment aggregator (Selcom, NMB, or GePG) to your system's reconciliation webhook.
+                    This simulator mimics an incoming HTTP POST request from a payment aggregator (Selcom, NMB, or GePG) to your system's reconciliation webhook. All funds are routed to the central school account: 0657206083.
                   </p>
                 </div>
 
@@ -1314,8 +1338,8 @@ export const Finance = () => {
             >
               <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between text-slate-900">
                 <div>
-                  <h3 className="text-xl font-extrabold uppercase tracking-tight">Record Payment</h3>
-                  <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">Transaction Data Entry</p>
+                  <h3 className="text-xl font-extrabold uppercase tracking-tight">{isParent ? 'School Fee Payment' : 'Record Payment'}</h3>
+                  <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">{isParent ? 'Direct Electronic Transfer' : 'Transaction Data Entry'}</p>
                 </div>
                 <button onClick={() => setIsRecordModalOpen(false)} className="p-2 hover:bg-slate-50 rounded-full transition-colors font-bold text-slate-400">
                   <X size={20} />
@@ -1323,6 +1347,27 @@ export const Finance = () => {
               </div>
 
               <form onSubmit={handleRecordPayment} className="p-8 space-y-6">
+                {isParent && (
+                  <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl space-y-3">
+                    <p className="text-[10px] text-emerald-700 font-black uppercase tracking-widest flex items-center gap-2">
+                       <ShieldCheck size={14} />
+                       Payment Instructions
+                    </p>
+                    <div className="space-y-2">
+                       <p className="text-[11px] text-emerald-600 font-bold leading-tight">
+                         Please send your payment to the official school account below. Once sent, enter the details here to reconcile your account.
+                       </p>
+                       <div className="bg-white/60 p-3 rounded-xl border border-emerald-200/50">
+                          <div className="flex justify-between items-center mb-1">
+                             <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Target Account</span>
+                             <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest bg-emerald-100 px-2 rounded">{SCHOOL_CONFIG.paymentDetails.provider}</span>
+                          </div>
+                          <p className="text-lg font-black text-slate-900 tracking-tight font-mono">{SCHOOL_CONFIG.paymentDetails.accountNumber}</p>
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">{SCHOOL_CONFIG.paymentDetails.accountName}</p>
+                       </div>
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 gap-6">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Student Account</label>

@@ -78,7 +78,9 @@ export const Exams = () => {
     date: '',
     classId: '',
     subjectId: '',
-    maxMarks: ''
+    maxMarks: '',
+    admissionNo: '',
+    marks: ''
   });
   const [selectedExam, setSelectedExam] = useState<Exam | null>(null);
   const [isMarkEntryOpen, setIsMarkEntryOpen] = useState(false);
@@ -523,11 +525,23 @@ export const Exams = () => {
           const newMapping = { ...columnMapping };
           headers.forEach(h => {
             const lowH = h.toLowerCase();
-            if (lowH.includes('title') || lowH.includes('name')) newMapping.title = h;
+            if (lowH.includes('title') || lowH.includes('name')) {
+              if (lowH.includes('student') || lowH.includes('candidate')) {
+                // Ignore student name for title
+              } else {
+                newMapping.title = h;
+              }
+            }
             if (lowH.includes('date')) newMapping.date = h;
             if (lowH.includes('class') || lowH.includes('level')) newMapping.classId = h;
             if (lowH.includes('subject')) newMapping.subjectId = h;
-            if (lowH.includes('marks') || lowH.includes('score')) newMapping.maxMarks = h;
+            if (lowH.includes('max') && (lowH.includes('marks') || lowH.includes('score'))) newMapping.maxMarks = h;
+            if (lowH.includes('admission') || lowH.includes('reg') || lowH.includes('id')) {
+              if (!lowH.includes('subject') && !lowH.includes('class')) {
+                newMapping.admissionNo = h;
+              }
+            }
+            if (!lowH.includes('max') && (lowH.includes('marks') || lowH.includes('score'))) newMapping.marks = h;
           });
           setColumnMapping(newMapping);
           setImportStep('mapping');
@@ -542,7 +556,11 @@ export const Exams = () => {
 
   const processImport = () => {
     const examsToImport: Exam[] = [];
+    const resultsToImport: Result[] = [];
     const skippedRows: number[] = [];
+
+    // Temporary map to keep track of exams created in this session to link results
+    const sessionExamMap = new Map<string, string>(); // key: "title|date|classId|subjectId", value: examId
 
     importedRows.forEach((row, index) => {
       const title = row[columnMapping.title];
@@ -556,34 +574,80 @@ export const Exams = () => {
         return;
       }
 
-      examsToImport.push({
-        id: generateId(),
-        title,
-        date,
-        classId: classId as AcademicLevel,
-        subjectId,
-        maxMarks,
-        term: 1, // Defaulting to term 1 since it's a common default
-        year: new Date().getFullYear(),
-        reminderDays: 3,
-        reminderType: 'none'
-      });
+      const examKey = `${title}|${date}|${classId}|${subjectId}`;
+      let examId = sessionExamMap.get(examKey);
+
+      // Check if exam exists in DB or this session
+      const existingExam = db.exams.find(e => 
+        e.title === title && e.date === date && e.classId === classId && e.subjectId === subjectId
+      );
+
+      if (existingExam) {
+        examId = existingExam.id;
+      } else if (!examId) {
+        const newId = generateId();
+        examsToImport.push({
+          id: newId,
+          title,
+          date,
+          classId: classId as AcademicLevel,
+          subjectId,
+          maxMarks,
+          term: 1,
+          year: new Date().getFullYear(),
+          reminderDays: 3,
+          reminderType: 'none'
+        });
+        examId = newId;
+        sessionExamMap.set(examKey, newId);
+      }
+
+      // Handle Results if present
+      const admissionNo = row[columnMapping.admissionNo];
+      const marks = row[columnMapping.marks];
+
+      if (admissionNo && marks !== undefined && marks !== '') {
+        const student = db.students.find(s => s.admissionNo === admissionNo);
+        if (student) {
+          const numericMarks = Number(marks);
+          if (!isNaN(numericMarks)) {
+            // Check if result already exists for this student/exam
+            const existingInDb = db.results.some(r => r.examId === examId && r.studentId === student.id);
+            const alreadyInQueue = resultsToImport.some(r => r.examId === examId && r.studentId === student.id);
+
+            if (!existingInDb && !alreadyInQueue) {
+              const grade = calculateGrade(numericMarks, student.classId as AcademicLevel, db.settings?.gradingScales);
+              resultsToImport.push({
+                id: generateId(),
+                examId: examId!,
+                studentId: student.id,
+                marks: numericMarks,
+                grade,
+                remarks: 'Imported via Bulk'
+              });
+            }
+          }
+        }
+      }
     });
 
-    if (examsToImport.length > 0) {
+    if (examsToImport.length > 0 || resultsToImport.length > 0) {
       const updatedExams = [...db.exams, ...examsToImport];
-      storageService.saveDB({ ...db, exams: updatedExams });
-      setDb({ ...db, exams: updatedExams });
+      const updatedResults = [...db.results, ...resultsToImport];
       
-      let msg = `Successfully imported ${examsToImport.length} exams.`;
-      if (skippedRows.length > 0) {
-        msg += ` Skipped ${skippedRows.length} rows due to missing data.`;
-      }
+      storageService.saveDB({ ...db, exams: updatedExams, results: updatedResults });
+      setDb({ ...db, exams: updatedExams, results: updatedResults });
+      
+      let msg = `Bulk Processing Complete.\n`;
+      if (examsToImport.length > 0) msg += `- Created ${examsToImport.length} new exam definitions.\n`;
+      if (resultsToImport.length > 0) msg += `- Imported ${resultsToImport.length} student results.\n`;
+      if (skippedRows.length > 0) msg += `- Skipped ${skippedRows.length} rows due to incomplete data.\n`;
+      
       alert(msg);
       setIsBulkImportOpen(false);
       setImportStep('upload');
     } else {
-      alert("No valid data found to import.");
+      alert("No valid new data found to import.");
     }
   };
 
@@ -709,7 +773,7 @@ export const Exams = () => {
                 className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-slate-800 text-white px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-slate-900/20 hover:bg-slate-900 transition-all"
               >
                 <Upload size={16} />
-                Bulk
+                Bulk Results
               </button>
               <button 
                 onClick={() => setIsAddModalOpen(true)}
