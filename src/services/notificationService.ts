@@ -46,6 +46,59 @@ export const notificationService = {
   },
 
   /**
+   * Helper to find recipient phone numbers based on parent and student metadata
+   */
+  async getRecipientPhoneNumbers(studentId: string): Promise<string[]> {
+    const db = storageService.getDB();
+    const phones: string[] = [];
+
+    const student = db.students.find(s => s.id === studentId);
+    if (student) {
+      if (student.metadata?.parentPhone) {
+        phones.push(student.metadata.parentPhone);
+      }
+      if (student.parentId) {
+        const parent = db.users.find(u => u.id === student.parentId);
+        if (parent?.phone) {
+          phones.push(parent.phone);
+        }
+      }
+    }
+
+    // Default fallback phone if none is configured
+    if (phones.length === 0) {
+      phones.push("+255 657 206 083");
+    }
+
+    return [...new Set(phones)];
+  },
+
+  /**
+   * Simulates sending an SMS by logging to DB and console
+   */
+  async sendSMS(payload: { to: string; body: string }) {
+    console.group(`📱 [SMS SENT] to ${payload.to}`);
+    console.log(`Body: ${payload.body}`);
+    console.groupEnd();
+
+    const db = storageService.getDB();
+    const notificationLog = {
+      id: `sms_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      to: payload.to,
+      subject: 'SMS Transaction Alert',
+      body: payload.body,
+      type: 'SMS_ALERT',
+      sentAt: new Date().toISOString(),
+      status: 'delivered'
+    };
+
+    const updatedNotifications = [...(db.notifications || []), notificationLog];
+    storageService.saveDB({ ...db, notifications: updatedNotifications } as any);
+
+    return true;
+  },
+
+  /**
    * Simulates sending an email by logging to DB and console
    */
   async sendEmail(payload: NotificationPayload) {
@@ -84,6 +137,7 @@ export const notificationService = {
 
   async notifyPayment(student: Student, amount: number) {
     const emails = await this.getRecipientEmails(student.id);
+    const phones = await this.getRecipientPhoneNumbers(student.id);
     
     for (const email of emails) {
       await this.sendEmail({
@@ -91,6 +145,14 @@ export const notificationService = {
         type: NotificationType.PAYMENT_RECEIVED,
         subject: `Payment Confirmation: ${student.name}`,
         body: `Salutations,\n\nWe have successfully received a payment of TZS ${amount.toLocaleString()} for ${student.name} (Admission: ${student.admissionNo}).\n\nThis payment was processed to account: ${SCHOOL_CONFIG.paymentDetails.accountNumber} (${SCHOOL_CONFIG.paymentDetails.accountName}).\n\nNew Fee Balance: TZS ${student.feeBalance.toLocaleString()}.\n\nThank you for choosing our school.`
+      });
+    }
+
+    // Direct confirmation message delivered to parent/guardian registered mobile core number
+    for (const phone of phones) {
+      await this.sendSMS({
+        to: phone,
+        body: `CONFIRMED: Payment of TZS ${amount.toLocaleString()} received for Student ${student.name} (Adm No: ${student.admissionNo}). New Fee Balance: TZS ${student.feeBalance.toLocaleString()}.\nCentral Clearing Settle: 0657206083.`
       });
     }
   },

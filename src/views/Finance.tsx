@@ -266,7 +266,7 @@ export const Finance = () => {
       const updatedPayments = [payment, ...db.payments];
       storageService.saveDB({ ...db, students: updatedStudents, payments: updatedPayments });
       
-      alert(`Electronic Payment Success!\nSettlement Target: 0657206083 (${SCHOOL_CONFIG.paymentDetails.provider})\nAmount: TZS ${payment.amount.toLocaleString()}\nStudent: ${student.name}\nThe system automated sync is complete.`);
+      alert(`Electronic Payment Success!\nSettlement Target: 0657206083 (${SCHOOL_CONFIG.paymentDetails.provider})\nAmount: TZS ${payment.amount.toLocaleString()}\nStudent: ${student.name}\n\nSMS payment confirmation successfully returned/sent to registered mobile number: ${student.metadata?.parentPhone || '0657206083'} to confirm payment.`);
 
       setStudents(updatedStudents);
       setPayments(updatedPayments);
@@ -1845,6 +1845,15 @@ export const Finance = () => {
                     <span className="text-[10px] font-mono font-bold text-slate-600">{selectedPayment.externalTransactionId}</span>
                   </div>
                 )}
+                <div className="flex justify-between items-center bg-indigo-50/50 p-2.5 rounded-xl border border-indigo-100/50">
+                  <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    SMS Confirmation
+                  </span>
+                  <span className="text-[9px] font-black font-mono text-indigo-700 uppercase tracking-widest">
+                    Sent to {students.find(s => s.id === selectedPayment.studentId)?.metadata?.parentPhone || "+255 657 206 083"}
+                  </span>
+                </div>
                 <div className="flex justify-between items-center">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Auth Status</span>
                   <div className="flex items-center gap-1 text-emerald-600 text-[10px] font-bold uppercase tracking-widest">
