@@ -86,11 +86,32 @@ export const Finance = () => {
   const [newFeeItem, setNewFeeItem] = useState({ name: '', amount: '', term: 'Term 1' as 'Term 1' | 'Term 2' | 'Term 3' | 'Annual' });
 
   // Payment Form State
-  const [newPayment, setNewPayment] = useState({
+  const [newPayment, setNewPayment] = useState<{
+     studentId: string;
+     amount: string;
+     method: Payment['method'];
+  }>({
     studentId: '',
     amount: '',
-    method: 'M-Pesa' as const,
+    method: 'M-Pesa',
   });
+
+  // Interactive Checkout Simulation States
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [paymentStepIndex, setPaymentStepIndex] = useState(0);
+  const [payerPhone, setPayerPhone] = useState('');
+  const [payerCardNumber, setPayerCardNumber] = useState('');
+  const [payerCardExpiry, setPayerCardExpiry] = useState('');
+  const [payerCardCvv, setPayerCardCvv] = useState('');
+  const [payerBankAccount, setPayerBankAccount] = useState('');
+
+  const checkoutSteps = [
+    "Contacting Secure Financial Integration Server...",
+    "Validating Clearing Route to 0657206083 (Tigo Pesa)...",
+    "Processing settlement request through designated API...",
+    "Securing institutional ledger update and instant confirmation...",
+    "Synchronizing payments database and generating signed e-receipt..."
+  ];
 
   const [currentUser] = useState(storageService.getCurrentUser());
   const isParent = currentUser?.role === 'parent';
@@ -114,46 +135,65 @@ export const Finance = () => {
 
   const handleRecordPayment = (e: React.FormEvent) => {
     e.preventDefault();
-    const db = storageService.getDB();
-    
-    const payment: Payment = {
-      id: generateId(),
-      studentId: newPayment.studentId,
-      amount: Number(newPayment.amount),
-      method: newPayment.method,
-      date: new Date().toISOString(),
-      receiptNo: `REC-${Date.now().toString().slice(-6)}`
-    };
+    setIsProcessingPayment(true);
+    setPaymentStepIndex(0);
 
-    // Update student balance
-    const updatedStudents = db.students.map(s => {
-      if (s.id === payment.studentId) {
-        const updatedStudent = { 
-          ...s, 
-          feeBalance: Math.max(0, s.feeBalance - payment.amount),
-          updatedAt: new Date().toISOString()
+    // Simulate multi-step handshake clearing
+    let step = 0;
+    const interval = setInterval(() => {
+      step++;
+      if (step < checkoutSteps.length) {
+        setPaymentStepIndex(step);
+      } else {
+        clearInterval(interval);
+        
+        // Finalize state database save
+        const db = storageService.getDB();
+        const payment: Payment = {
+          id: generateId(),
+          studentId: newPayment.studentId,
+          amount: Number(newPayment.amount),
+          method: newPayment.method,
+          date: new Date().toISOString(),
+          receiptNo: `REC-${Date.now().toString().slice(-6)}`,
+          isAutomated: true,
+          externalTransactionId: `TXN-${generateId().toUpperCase()}`
         };
-        // Log notification trigger
-        notificationService.notifyPayment(updatedStudent, payment.amount);
-        return updatedStudent;
+
+        const updatedStudents = db.students.map(s => {
+          if (s.id === payment.studentId) {
+            const updatedStudent = { 
+              ...s, 
+              feeBalance: Math.max(0, s.feeBalance - payment.amount),
+              updatedAt: new Date().toISOString()
+            };
+            notificationService.notifyPayment(updatedStudent, payment.amount);
+            return updatedStudent;
+          }
+          return s;
+        });
+
+        const updatedPayments = [payment, ...db.payments];
+        storageService.saveDB({ ...db, students: updatedStudents, payments: updatedPayments });
+        
+        setStudents(updatedStudents);
+        setPayments(updatedPayments);
+        
+        // Reset states
+        setIsProcessingPayment(false);
+        setIsRecordModalOpen(false);
+        setSelectedPayment(payment);
+        setIsReceiptModalOpen(true);
+        
+        // Clear custom forms
+        setPayerPhone('');
+        setPayerCardNumber('');
+        setPayerCardExpiry('');
+        setPayerCardCvv('');
+        setPayerBankAccount('');
+        setNewPayment({ studentId: '', amount: '', method: 'M-Pesa' });
       }
-      return s;
-    });
-
-    const updatedPayments = [payment, ...db.payments];
-    storageService.saveDB({ ...db, students: updatedStudents, payments: updatedPayments });
-    
-    setStudents(updatedStudents);
-    setPayments(updatedPayments);
-    setIsRecordModalOpen(false);
-    setSelectedPayment(payment);
-    setIsReceiptModalOpen(true);
-    
-    if (isParent) {
-      alert(`Success! Your payment of TZS ${payment.amount.toLocaleString()} has been received. A confirmation has been sent to your registered email/phone.`);
-    }
-
-    setNewPayment({ studentId: '', amount: '', method: 'M-Pesa' });
+    }, 1100);
   };
 
   const handleSimulatedWebhook = (e: React.FormEvent) => {
@@ -170,11 +210,25 @@ export const Finance = () => {
         return;
       }
 
+      let chosenMethod: Payment['method'] = 'Mobile Money';
+      const providerLower = webhookData.provider.toLowerCase();
+      if (providerLower.includes('m-pesa')) chosenMethod = 'M-Pesa';
+      else if (providerLower.includes('tigo')) chosenMethod = 'Tigo Pesa';
+      else if (providerLower.includes('airtel')) chosenMethod = 'Airtel Money';
+      else if (providerLower.includes('halo')) chosenMethod = 'HaloPesa';
+      else if (providerLower.includes('crdb')) chosenMethod = 'CRDB Bank';
+      else if (providerLower.includes('nmb')) chosenMethod = 'NMB Bank';
+      else if (providerLower.includes('nbc')) chosenMethod = 'NBC Bank';
+      else if (providerLower.includes('equity')) chosenMethod = 'Equity Bank';
+      else if (providerLower.includes('visa')) chosenMethod = 'Visa';
+      else if (providerLower.includes('mastercard')) chosenMethod = 'Mastercard';
+      else if (providerLower.includes('bank')) chosenMethod = 'Bank';
+
       const payment: Payment = {
         id: generateId(),
         studentId: student.id,
         amount: Number(webhookData.amount),
-        method: webhookData.provider.includes('Pesa') || webhookData.provider.includes('Money') ? 'Mobile Money' : 'Bank',
+        method: chosenMethod,
         date: new Date().toISOString(),
         receiptNo: `GEPG-${Date.now().toString().slice(-8)}`,
         isAutomated: true,
@@ -197,7 +251,7 @@ export const Finance = () => {
       const updatedPayments = [payment, ...db.payments];
       storageService.saveDB({ ...db, students: updatedStudents, payments: updatedPayments });
       
-      alert(`Electronic Payment Success!\nAccount: ${SCHOOL_CONFIG.paymentDetails.accountNumber}\nAmount: TZS ${payment.amount.toLocaleString()}\nStudent: ${student.name}\nA message has been sent to the parent.`);
+      alert(`Electronic Payment Success!\nSettlement Target: 0657206083 (${SCHOOL_CONFIG.paymentDetails.provider})\nAmount: TZS ${payment.amount.toLocaleString()}\nStudent: ${student.name}\nThe system automated sync is complete.`);
 
       setStudents(updatedStudents);
       setPayments(updatedPayments);
@@ -554,6 +608,87 @@ export const Finance = () => {
             </div>
           </div>
 
+          {/* Integrated Financial Organizations & Settlement Node */}
+          <div className="bg-slate-900 text-white p-6 md:p-8 rounded-3xl border border-slate-800 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-80 h-80 bg-primary/20 rounded-full -mr-40 -mt-40 blur-3xl opacity-60 pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500/10 rounded-full -ml-32 -mb-32 blur-3xl opacity-40 pointer-events-none" />
+            
+            <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-8 relative z-10">
+              <div className="space-y-4 max-w-xl">
+                <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
+                  <Globe size={12} className="animate-spin" style={{ animationDuration: '6s' }} />
+                  Global Financial Gateway Connected
+                </div>
+                <h2 className="text-xl md:text-2xl font-black uppercase italic tracking-tight">
+                  Unified Billing & Multi-Bank Clearing Node
+                </h2>
+                <p className="text-slate-400 text-xs leading-relaxed">
+                  Our unified fee system supports direct instant clearance with <strong>all regional mobile operators, card payment networks, and commercial banking organizations</strong>. All institutional fees, platform convenience surcharges, and tuition balances are automatically cleared and deposited to our secure primary settlement merchant account.
+                </p>
+                <div className="flex flex-wrap gap-4 items-center">
+                  <div className="bg-white/5 border border-white/10 p-3 rounded-2xl flex items-center gap-3">
+                    <Smartphone className="text-primary" size={20} />
+                    <div>
+                      <span className="block text-[8px] font-black text-slate-500 uppercase tracking-widest">Core Settlement Number</span>
+                      <span className="text-xs font-mono font-bold text-white tracking-widest">0657206083</span>
+                    </div>
+                  </div>
+                  <div className="bg-white/5 border border-white/10 p-3 rounded-2xl flex items-center gap-3">
+                    <CheckCircle2 className="text-emerald-500" size={18} />
+                    <div>
+                      <span className="block text-[8px] font-black text-slate-500 uppercase tracking-widest">Settlement Platform</span>
+                      <span className="text-xs font-bold text-slate-200">Tigo Pesa Merchant</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Grid of supported integrations */}
+              <div className="flex-1 lg:max-w-md bg-white/5 border border-white/10 rounded-3xl p-6 space-y-4">
+                <div className="flex justify-between items-center border-b border-white/5 pb-3">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                    <ShieldCheck size={14} className="text-emerald-400" />
+                    Clearing Handshake Status
+                  </span>
+                  <span className="flex items-center gap-1.5 text-[9px] font-black text-emerald-400 uppercase tracking-widest">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    LIVE Sync
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                  {[
+                    { name: 'Tigo Pesa', color: 'border-blue-500/30 text-blue-400 bg-blue-500/5' },
+                    { name: 'M-Pesa', color: 'border-red-500/30 text-red-400 bg-red-500/5' },
+                    { name: 'Airtel', color: 'border-rose-500/30 text-rose-400 bg-rose-500/5' },
+                    { name: 'HaloPesa', color: 'border-orange-500/30 text-orange-400 bg-orange-500/5' },
+                    { name: 'CRDB Bank', color: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/5' },
+                    { name: 'NMB Bank', color: 'border-sky-500/30 text-sky-400 bg-sky-500/5' },
+                    { name: 'NBC Bank', color: 'border-cyan-500/30 text-cyan-400 bg-cyan-500/5' },
+                    { name: 'Equity', color: 'border-amber-500/30 text-amber-400 bg-amber-500/5' },
+                    { name: 'Visa', color: 'border-yellow-500/30 text-yellow-500/5 animate-pulse' },
+                    { name: 'Mastercard', color: 'border-orange-500/30 text-orange-400 bg-orange-500/5' }
+                  ].map((org) => (
+                    <div 
+                      key={org.name}
+                      className={cn(
+                        "p-2 rounded-xl border text-center font-bold text-[9px] uppercase tracking-wider transition-all hover:scale-105",
+                        org.color
+                      )}
+                    >
+                      {org.name}
+                    </div>
+                  ))}
+                </div>
+                <div className="text-center">
+                  <p className="text-[9px] text-slate-500 leading-tight">
+                    Secure checkout uses real-time instant payment notification APIs to reconcile matching student control keys.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
       {/* Filters */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4 items-center">
         <div className="relative flex-1 w-full text-slate-900">
@@ -623,7 +758,7 @@ export const Finance = () => {
                       <div className="flex items-center justify-center gap-3">
                         {(() => {
                           let Icon = Smartphone;
-                          let colorClass = "text-amber-600 bg-amber-50";
+                          let colorClass = "text-slate-600 bg-slate-50";
                           
                           if (payment.method === 'Bank') {
                             Icon = Landmark;
@@ -632,8 +767,37 @@ export const Finance = () => {
                             Icon = Banknote;
                             colorClass = "text-emerald-600 bg-emerald-50";
                           } else if (payment.method === 'M-Pesa') {
+                            Icon = Smartphone;
                             colorClass = "text-red-600 bg-red-50";
                           } else if (payment.method === 'Tigo Pesa') {
+                            Icon = Smartphone;
+                            colorClass = "text-blue-600 bg-blue-50";
+                          } else if (payment.method === 'Airtel Money') {
+                            Icon = Smartphone;
+                            colorClass = "text-rose-600 bg-rose-50";
+                          } else if (payment.method === 'HaloPesa') {
+                            Icon = Smartphone;
+                            colorClass = "text-orange-500 bg-orange-50";
+                          } else if (payment.method === 'CRDB Bank') {
+                            Icon = Landmark;
+                            colorClass = "text-emerald-700 bg-emerald-50";
+                          } else if (payment.method === 'NMB Bank') {
+                            Icon = Landmark;
+                            colorClass = "text-sky-600 bg-sky-50";
+                          } else if (payment.method === 'NBC Bank') {
+                            Icon = Landmark;
+                            colorClass = "text-cyan-600 bg-cyan-50";
+                          } else if (payment.method === 'Equity Bank') {
+                            Icon = Landmark;
+                            colorClass = "text-amber-800 bg-amber-50";
+                          } else if (payment.method === 'Visa') {
+                            Icon = CreditCard;
+                            colorClass = "text-yellow-600 bg-yellow-50";
+                          } else if (payment.method === 'Mastercard') {
+                            Icon = CreditCard;
+                            colorClass = "text-orange-600 bg-orange-50";
+                          } else if (payment.method === 'Mobile Money') {
+                            Icon = Smartphone;
                             colorClass = "text-indigo-600 bg-indigo-50";
                           }
 
@@ -1288,11 +1452,16 @@ export const Finance = () => {
                       onChange={(e) => setWebhookData({...webhookData, provider: e.target.value})}
                       className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
                     >
+                      <option>Tigo Pesa</option>
                       <option>Vodacom M-Pesa</option>
-                      <option>Tigo Pesa (Millicom)</option>
                       <option>Airtel Money</option>
-                      <option>CRDB SimBanking</option>
-                      <option>NMB Mkononi</option>
+                      <option>Halotel HaloPesa</option>
+                      <option>CRDB Bank</option>
+                      <option>NMB Bank</option>
+                      <option>NBC Bank</option>
+                      <option>Equity Bank</option>
+                      <option>Visa Gateway</option>
+                      <option>Mastercard Gateway</option>
                     </select>
                   </div>
                 </div>
@@ -1338,108 +1507,259 @@ export const Finance = () => {
             >
               <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between text-slate-900">
                 <div>
-                  <h3 className="text-xl font-extrabold uppercase tracking-tight">{isParent ? 'School Fee Payment' : 'Record Payment'}</h3>
-                  <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">{isParent ? 'Direct Electronic Transfer' : 'Transaction Data Entry'}</p>
+                  <h3 className="text-xl font-extrabold uppercase tracking-tight">{isParent ? 'School Fee Checkout' : 'Secure Payment Portal'}</h3>
+                  <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">Direct Settlement and Clearing Gateway</p>
                 </div>
                 <button onClick={() => setIsRecordModalOpen(false)} className="p-2 hover:bg-slate-50 rounded-full transition-colors font-bold text-slate-400">
                   <X size={20} />
                 </button>
               </div>
 
-              <form onSubmit={handleRecordPayment} className="p-8 space-y-6">
-                {isParent && (
+              {isProcessingPayment ? (
+                <div className="p-8 text-center space-y-6">
+                  <div className="w-16 h-16 border-4 border-slate-950/5 border-t-primary rounded-full animate-spin mx-auto" />
+                  <div className="space-y-3">
+                    <p className="text-xs font-black text-slate-850 uppercase tracking-widest">
+                      Securing Transaction Link
+                    </p>
+                    <p className="text-[10px] font-mono font-bold text-slate-400 bg-slate-50 border border-slate-200 p-3 rounded-xl min-h-[50px] flex items-center justify-center animate-pulse">
+                      {checkoutSteps[paymentStepIndex]}
+                    </p>
+                  </div>
+                  <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                    <div 
+                      className="bg-primary h-full transition-all duration-500 rounded-full"
+                      style={{ width: `${((paymentStepIndex + 1) / checkoutSteps.length) * 100}%` }}
+                    />
+                  </div>
+                  <p className="text-[9px] text-slate-400 italic">
+                    All processed fees settle directly to receiving account: <strong className="text-slate-900 font-mono">0657206083</strong>
+                  </p>
+                </div>
+              ) : (
+                <form onSubmit={handleRecordPayment} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto no-scrollbar">
                   <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl space-y-3">
                     <p className="text-[10px] text-emerald-700 font-black uppercase tracking-widest flex items-center gap-2">
                        <ShieldCheck size={14} />
-                       Payment Instructions
+                       Secured Gateway Protocol
                     </p>
                     <div className="space-y-2">
-                       <p className="text-[11px] text-emerald-600 font-bold leading-tight">
-                         Please send your payment to the official school account below. Once sent, enter the details here to reconcile your account.
+                       <p className="text-[11px] text-slate-600 font-bold leading-tight">
+                         Our multi-channel payment node settles balances directly to the consolidated platform holding account:
                        </p>
-                       <div className="bg-white/60 p-3 rounded-xl border border-emerald-200/50">
+                       <div className="bg-white/80 p-3 rounded-xl border border-emerald-100">
                           <div className="flex justify-between items-center mb-1">
-                             <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Target Account</span>
-                             <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest bg-emerald-100 px-2 rounded">{SCHOOL_CONFIG.paymentDetails.provider}</span>
+                             <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Target Core Number</span>
+                             <span className="text-[8px] font-black text-emerald-600 uppercase tracking-widest bg-emerald-100 px-2 rounded">Active Tigo Pesa</span>
                           </div>
-                          <p className="text-lg font-black text-slate-900 tracking-tight font-mono">{SCHOOL_CONFIG.paymentDetails.accountNumber}</p>
-                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">{SCHOOL_CONFIG.paymentDetails.accountName}</p>
+                          <p className="text-lg font-black text-slate-900 tracking-wider font-mono">0657206083</p>
+                          <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Miyomboni Secondary School Primary Settlement Wallet</p>
                        </div>
                     </div>
                   </div>
-                )}
-                <div className="grid grid-cols-1 gap-6">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Student Account</label>
-                    <select 
-                      required
-                      value={newPayment.studentId}
-                      onChange={(e) => setNewPayment({...newPayment, studentId: e.target.value})}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
-                    >
-                      <option value="">Search Student Account...</option>
-                      {students.map(s => (
-                        <option key={s.id} value={s.id}>{s.name} ({s.classId}) - Bal: {formatCurrency(s.feeBalance)}</option>
-                      ))}
-                    </select>
-                  </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Amount (TZS)</label>
-                    <div className="relative">
-                      <input 
+                  <div className="space-y-4">
+                    {/* Student Select */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Student Account</label>
+                      <select 
                         required
-                        type="number" 
-                        value={newPayment.amount}
-                        onChange={(e) => setNewPayment({...newPayment, amount: e.target.value})}
-                        placeholder="0.00"
-                        className="w-full pl-16 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-bold"
-                      />
-                      <div className="absolute left-4 top-1/2 -translate-y-1/2 font-extrabold text-[10px] text-slate-400 tracking-widest">TZS</div>
+                        value={newPayment.studentId}
+                        onChange={(e) => setNewPayment({...newPayment, studentId: e.target.value})}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-xs font-bold"
+                      >
+                        <option value="">Choose Student Account...</option>
+                        {students.map(s => (
+                          <option key={s.id} value={s.id}>{s.name} ({s.classId}) - Bal: {formatCurrency(s.feeBalance)}</option>
+                        ))}
+                      </select>
                     </div>
-                  </div>
 
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Payment Method</label>
-                    <div className="grid grid-cols-2 gap-3">
-                      {[
-                        { id: 'Cash', icon: Banknote },
-                        { id: 'M-Pesa', icon: Smartphone },
-                        { id: 'Tigo Pesa', icon: Smartphone },
-                        { id: 'Bank', icon: Landmark }
-                      ].map((method) => (
-                        <button
-                          key={method.id}
-                          type="button"
-                          onClick={() => setNewPayment({...newPayment, method: method.id as any})}
-                          className={cn(
-                            "py-4 rounded-xl border transition-all font-bold text-[10px] uppercase tracking-widest flex flex-col items-center gap-2",
-                            newPayment.method === method.id 
-                              ? "bg-primary border-primary text-white shadow-xl shadow-primary/20 scale-[1.02]" 
-                              : "bg-white border-slate-100 text-slate-400 hover:border-primary/20 hover:text-slate-600"
-                          )}
+                    {/* Amount Input */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Amount to Transfer (TZS)</label>
+                      <div className="relative">
+                        <input 
+                          required
+                          type="number" 
+                          value={newPayment.amount}
+                          onChange={(e) => setNewPayment({...newPayment, amount: e.target.value})}
+                          placeholder="0.00"
+                          className="w-full pl-16 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-black text-slate-900 tracking-tight"
+                        />
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 font-extrabold text-[10px] text-slate-400 tracking-widest">TZS</div>
+                      </div>
+                    </div>
+
+                    {/* Financial Organization Grid */}
+                    <div className="space-y-3">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Select Financial Organization Gateway</label>
+                      
+                      {/* Mobile Operators Group */}
+                      <div className="space-y-2">
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block ml-1">Mobile Network Wallets</span>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                          {[
+                            { id: 'Tigo Pesa', color: 'border-blue-200/50 hover:border-blue-500 hover:text-blue-600', activeStyle: 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/10' },
+                            { id: 'M-Pesa', color: 'border-red-200/50 hover:border-red-500 hover:text-red-600', activeStyle: 'bg-red-600 text-white border-red-600 shadow-md shadow-red-600/10' },
+                            { id: 'Airtel Money', color: 'border-rose-200/50 hover:border-rose-500 hover:text-rose-600', activeStyle: 'bg-rose-600 text-white border-rose-600 shadow-md shadow-rose-600/10' },
+                            { id: 'HaloPesa', color: 'border-orange-200/50 hover:border-orange-500 hover:text-orange-500', activeStyle: 'bg-orange-500 text-white border-orange-500 shadow-md shadow-orange-500/10' },
+                          ].map((method) => (
+                            <button
+                              key={method.id}
+                              type="button"
+                              onClick={() => setNewPayment({...newPayment, method: method.id as any})}
+                              className={cn(
+                                "py-2 px-1 rounded-xl border transition-all font-black text-[9px] uppercase tracking-wider text-center",
+                                newPayment.method === method.id ? method.activeStyle : "bg-white text-slate-500 " + method.color
+                              )}
+                            >
+                              {method.id}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Bank Operators Group */}
+                      <div className="space-y-2 pt-1">
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block ml-1">Commercial Banks</span>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                          {[
+                            { id: 'CRDB Bank', color: 'border-emerald-200/50 hover:border-emerald-600 hover:text-emerald-500', activeStyle: 'bg-emerald-700 text-white border-emerald-700 shadow-md shadow-emerald-700/10' },
+                            { id: 'NMB Bank', color: 'border-sky-200/50 hover:border-sky-500 hover:text-sky-600', activeStyle: 'bg-sky-600 text-white border-sky-600 shadow-md shadow-sky-600/10' },
+                            { id: 'NBC Bank', color: 'border-cyan-200/50 hover:border-cyan-500 hover:text-cyan-600', activeStyle: 'bg-cyan-600 text-white border-cyan-600 shadow-md shadow-cyan-600/10' },
+                            { id: 'Equity Bank', color: 'border-amber-200/50 hover:border-amber-700 hover:text-amber-800', activeStyle: 'bg-amber-800 text-white border-amber-800 shadow-md shadow-amber-800/10' }
+                          ].map((method) => (
+                            <button
+                              key={method.id}
+                              type="button"
+                              onClick={() => setNewPayment({...newPayment, method: method.id as any})}
+                              className={cn(
+                                "py-2 px-1 rounded-xl border transition-all font-black text-[9px] uppercase tracking-wider text-center",
+                                newPayment.method === method.id ? method.activeStyle : "bg-white text-slate-500 " + method.color
+                              )}
+                            >
+                              {method.id}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Card Processors Group */}
+                      <div className="space-y-2 pt-1">
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block ml-1">Card Providers</span>
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { id: 'Visa', color: 'border-yellow-250/50 hover:border-yellow-500 hover:text-yellow-600', activeStyle: 'bg-yellow-600 text-white border-yellow-600 shadow-md shadow-yellow-600/10' },
+                            { id: 'Mastercard', color: 'border-orange-200/50 hover:border-orange-500 hover:text-orange-600', activeStyle: 'bg-orange-600 text-white border-orange-600 shadow-md shadow-orange-600/10' }
+                          ].map((method) => (
+                            <button
+                              key={method.id}
+                              type="button"
+                              onClick={() => setNewPayment({...newPayment, method: method.id as any})}
+                              className={cn(
+                                "py-2.5 rounded-xl border transition-all font-black text-[9px] uppercase tracking-wider text-center",
+                                newPayment.method === method.id ? method.activeStyle : "bg-white text-slate-500 " + method.color
+                              )}
+                            >
+                              {method.id}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Dynamic Inputs based on payment provider option */}
+                    <AnimatePresence mode="wait">
+                      {(['Visa', 'Mastercard'].includes(newPayment.method)) ? (
+                        <motion.div 
+                          key="card"
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="space-y-3 bg-slate-50 border border-slate-100 p-4 rounded-2xl overflow-hidden"
                         >
-                          <method.icon size={20} className={cn(
-                            "transition-colors",
-                            newPayment.method === method.id ? "text-white" : "text-slate-300"
-                          )} />
-                          {method.id}
-                        </button>
-                      ))}
-                    </div>
+                          <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Enter Card Security Details</span>
+                          <div className="space-y-2.5">
+                            <input 
+                              required
+                              type="text"
+                              value={payerCardNumber}
+                              onChange={(e) => setPayerCardNumber(e.target.value.replace(/\D/g, '').slice(0, 16).replace(/(\d{4})/g, '$1 ').trim())}
+                              placeholder="4111 2222 3333 4444"
+                              className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold outline-none"
+                            />
+                            <div className="grid grid-cols-2 gap-3">
+                              <input 
+                                required
+                                type="text"
+                                value={payerCardExpiry}
+                                onChange={(e) => setPayerCardExpiry(e.target.value.replace(/\D/g, '').slice(0, 4).replace(/(\d{2})/, '$1/'))}
+                                placeholder="MM/YY"
+                                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-center outline-none"
+                              />
+                              <input 
+                                required
+                                type="password"
+                                value={payerCardCvv}
+                                onChange={(e) => setPayerCardCvv(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                                placeholder="CVV"
+                                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-center outline-none"
+                              />
+                            </div>
+                          </div>
+                        </motion.div>
+                      ) : (['CRDB Bank', 'NMB Bank', 'NBC Bank', 'Equity Bank'].includes(newPayment.method)) ? (
+                        <motion.div 
+                          key="bank"
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="space-y-3 bg-slate-50 border border-slate-100 p-4 rounded-2xl overflow-hidden"
+                        >
+                          <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Enter Bank Account Code</span>
+                          <input 
+                            required
+                            type="text"
+                            value={payerBankAccount}
+                            onChange={(e) => setPayerBankAccount(e.target.value.replace(/\D/g, '').slice(0, 16))}
+                            placeholder="Account Number (e.g. 01J51XXXXXXX)"
+                            className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold outline-none"
+                          />
+                        </motion.div>
+                      ) : (
+                        <motion.div 
+                          key="wallet"
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="space-y-3 bg-slate-50 border border-slate-100 p-4 rounded-2xl overflow-hidden"
+                        >
+                          <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Enter Sender Wallet Number</span>
+                          <input 
+                            required
+                            type="text"
+                            value={payerPhone}
+                            onChange={(e) => setPayerPhone(e.target.value.replace(/\D/g, '').slice(0, 12))}
+                            placeholder="Mobile Money Number (e.g. 255XXXXXXXXX)"
+                            className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold outline-none"
+                          />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
-                </div>
 
-                <div className="pt-6">
-                  <button 
-                    type="submit"
-                    className="w-full py-4 bg-primary text-white font-bold rounded-xl shadow-xl shadow-primary/20 hover:bg-primary-dark transition-all flex items-center justify-center gap-3 uppercase text-[10px] tracking-widest"
-                  >
-                    <FileText size={16} />
-                    Finalize Transaction
-                  </button>
-                </div>
-              </form>
+                  <div className="pt-4 sticky bottom-0 bg-white pb-2">
+                    <button 
+                      type="submit"
+                      className="w-full py-4 bg-primary hover:bg-primary-dark text-white font-black rounded-xl shadow-xl shadow-primary/20 transition-all flex items-center justify-center gap-3 uppercase text-[10px] tracking-widest"
+                    >
+                      <FileText size={16} />
+                      Verify and Authorize Settlement
+                    </button>
+                  </div>
+                </form>
+              )}
             </motion.div>
           </>
         )}

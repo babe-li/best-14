@@ -139,7 +139,7 @@ export interface Payment {
   id: string;
   studentId: string;
   amount: number;
-  method: 'Cash' | 'M-Pesa' | 'Tigo Pesa' | 'Bank' | 'Mobile Money';
+  method: 'Cash' | 'M-Pesa' | 'Tigo Pesa' | 'Airtel Money' | 'HaloPesa' | 'CRDB Bank' | 'NMB Bank' | 'NBC Bank' | 'Equity Bank' | 'Visa' | 'Mastercard' | 'Bank' | 'Mobile Money';
   date: string;
   receiptNo: string;
   isAutomated?: boolean;
