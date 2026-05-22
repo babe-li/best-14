@@ -1,0 +1,30 @@
+{
+  "entities": {
+    "settings": {
+      "title": "System Settings",
+      "description": "Global settings for the School Management System, including grading scales, sections, and priority colors.",
+      "type": "object",
+      "properties": {
+        "priorityColors": {
+          "type": "object",
+          "description": "Color definitions for task priorities (bg, text, border)."
+        },
+        "sections": {
+          "type": "array",
+          "description": "School sections"
+        },
+        "gradingScales": {
+          "type": "array",
+          "description": "Grading scale definitions"
+        }
+      },
+      "required": ["priorityColors"]
+    }
+  },
+  "firestore": {
+    "settings/global": {
+      "schema": "settings",
+      "description": "Global system settings document"
+    }
+  }
+}

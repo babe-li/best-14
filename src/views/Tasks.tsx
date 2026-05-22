@@ -27,8 +27,16 @@ import {
   Sliders
 } from 'lucide-react';
 import { storageService } from '../services/storageService';
+import { firebaseService } from '../services/firebaseService';
 import { type Task, type TaskPriority, type TaskStatus, type TaskCategory, type User as UserType, type Student } from '../types';
 import { cn } from '../lib/utils';
+
+const prioritySignifications: Record<TaskPriority, string> = {
+  Low: "Routine administration, non-urgent housekeeping, or low-priority personal items with flexible timelines.",
+  Medium: "Standard class preparation and academic duties. To be resolved within normal schedules.",
+  High: "Critical deadlines, urgent grading, scheduled parent-teacher reviews, or lesson plan submissions.",
+  Urgent: "Immediate action required. Impending major cutoffs, critical student escalations, or operational blockages."
+};
 
 export const Tasks = () => {
   const [db, setDb] = useState(storageService.getDB());
@@ -53,7 +61,7 @@ export const Tasks = () => {
     };
   });
 
-  const savePriorityColors = (newColors: any) => {
+  const savePriorityColors = async (newColors: any) => {
     setPriorityColors(newColors);
     const currentDb = storageService.getDB();
     if (!currentDb.settings) {
@@ -61,7 +69,18 @@ export const Tasks = () => {
     }
     currentDb.settings.priorityColors = newColors;
     storageService.saveDB(currentDb);
-    setDb(currentDb);
+    setDb({ ...currentDb });
+
+    // Save to Firestore if configured
+    if (firebaseService.isConfigured()) {
+      try {
+        await firebaseService.saveGlobalSettings({
+          priorityColors: newColors
+        });
+      } catch (error) {
+        console.error("Error saving priority badge colors to Firestore:", error);
+      }
+    }
   };
   
   const categories: TaskCategory[] = [
@@ -85,7 +104,30 @@ export const Tasks = () => {
   });
 
   useEffect(() => {
-    setDb(storageService.getDB());
+    const loadSettings = async () => {
+      const currentDb = storageService.getDB();
+      setDb(currentDb);
+      
+      if (firebaseService.isConfigured()) {
+        try {
+          const fsSettings = await firebaseService.getGlobalSettings();
+          if (fsSettings && fsSettings.priorityColors) {
+            setPriorityColors(fsSettings.priorityColors);
+            
+            // Sync with local memory and cache database if changed
+            if (!currentDb.settings) {
+              currentDb.settings = { sections: [], gradingScales: [] };
+            }
+            currentDb.settings.priorityColors = fsSettings.priorityColors;
+            storageService.saveDB(currentDb);
+            setDb({ ...currentDb });
+          }
+        } catch (error) {
+          console.error("Error loading settings from Firestore:", error);
+        }
+      }
+    };
+    loadSettings();
   }, []);
 
   const tasks = db.tasks || [];
@@ -237,124 +279,166 @@ export const Tasks = () => {
         </div>
       </div>
 
-      {/* Expandable Priority Color Configurer */}
+      {/* Priority Color Configurer Modal */}
       <AnimatePresence>
         {isConfigOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden bg-white rounded-3xl border border-slate-200 p-6 md:p-8 shadow-xl"
-          >
-             <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
-                <div>
-                   <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                      <Sliders size={16} className="text-primary" />
-                      Configure Task Priority Badge Styles
-                   </h3>
-                   <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">
-                      Customize dynamic background, border, and text colors stored in the server database
-                   </p>
-                </div>
-                <button 
-                   onClick={() => setIsConfigOpen(false)}
-                   className="p-1 px-3 bg-slate-50 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-950 font-black text-[9px] uppercase tracking-wider border border-slate-100 transition-all"
-                >
-                   Close
-                </button>
-             </div>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+               initial={{ opacity: 0 }} 
+               animate={{ opacity: 1 }} 
+               exit={{ opacity: 0 }}
+               onClick={() => setIsConfigOpen(false)}
+               className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+               initial={{ opacity: 0, scale: 0.95, y: 20 }}
+               animate={{ opacity: 1, scale: 1, y: 0 }}
+               exit={{ opacity: 0, scale: 0.95, y: 20 }}
+               className="relative w-full max-w-4xl bg-white rounded-[40px] shadow-2xl overflow-hidden z-10"
+            >
+               <div className="p-8 bg-slate-900 text-white relative">
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 rounded-full -mr-32 -mt-32 blur-3xl opacity-50" />
+                  <h3 className="text-2xl font-black tracking-tight uppercase italic flex items-center gap-2.5">
+                     <Palette size={24} className="text-primary animate-pulse" />
+                     Configure Badge Colors
+                  </h3>
+                  <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">
+                     Custom dynamic presentation layer for operational priorities
+                  </p>
+                  <button 
+                     onClick={() => setIsConfigOpen(false)}
+                     className="absolute top-6 right-6 w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center hover:bg-white/20 transition-all text-white"
+                  >
+                     <X size={20} />
+                  </button>
+               </div>
 
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {(['Low', 'Medium', 'High', 'Urgent'] as TaskPriority[]).map((level) => {
-                   const config = priorityColors[level] || { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' };
-                   return (
-                      <div key={level} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl space-y-4">
-                         <div className="flex justify-between items-center">
-                            <span className="text-xs font-black text-slate-900 uppercase tracking-widest">{level}</span>
-                            <span 
-                               className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all"
-                               style={{
-                                  backgroundColor: config.bg,
-                                  color: config.text,
-                                  borderColor: config.border
-                               }}
-                            >
-                               {level} Preview
-                            </span>
-                         </div>
+               <div className="p-8 space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                     {(['Low', 'Medium', 'High', 'Urgent'] as TaskPriority[]).map((level) => {
+                        const config = priorityColors[level] || { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' };
+                        return (
+                           <div key={level} className="p-5 bg-slate-50 border border-slate-100 rounded-3xl space-y-4">
+                              <div className="flex justify-between items-center">
+                                 <span className="text-xs font-black text-slate-900 uppercase tracking-widest">{level}</span>
+                                 <div className="relative group/tooltip inline-block">
+                                    <motion.span 
+                                       className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border shadow-sm hover:shadow cursor-default inline-block"
+                                       animate={{
+                                          backgroundColor: config.bg,
+                                          color: config.text,
+                                          borderColor: config.border
+                                        }}
+                                       whileHover={{ scale: 1.1, rotate: 2 }}
+                                       whileTap={{ scale: 0.95 }}
+                                       transition={{
+                                          type: "spring",
+                                          stiffness: 260,
+                                          damping: 18
+                                       }}
+                                    >
+                                       {level} Preview
+                                    </motion.span>
+                                    <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 scale-90 opacity-0 origin-bottom group-hover/tooltip:scale-100 group-hover/tooltip:opacity-100 transition-all duration-200 ease-out z-50 p-3 bg-slate-900 border border-slate-800 text-white rounded-xl shadow-xl space-y-1">
+                                       <div className="flex items-center gap-1.5 font-bold uppercase text-[9px] tracking-wider text-slate-200 border-b border-slate-800 pb-1">
+                                          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: config.text }} />
+                                          {level} Priority
+                                       </div>
+                                       <p className="text-[10px] text-slate-400 leading-relaxed font-sans normal-case">
+                                          {prioritySignifications[level]}
+                                       </p>
+                                    </div>
+                                 </div>
+                              </div>
 
-                         <div className="space-y-2.5 text-xs">
-                            <div className="flex justify-between items-center bg-white p-2 rounded-xl border border-slate-100">
-                               <span className="text-[10px] text-slate-400 font-bold uppercase">Background</span>
-                               <input 
-                                  type="color" 
-                                  value={config.bg}
-                                  onChange={(e) => {
-                                     const updated = {
-                                        ...priorityColors,
-                                        [level]: { ...config, bg: e.target.value }
-                                     };
-                                     savePriorityColors(updated);
-                                  }}
-                                  className="w-8 h-8 rounded-lg cursor-pointer border-0 bg-transparent outline-none"
-                               />
-                            </div>
-                            <div className="flex justify-between items-center bg-white p-2 rounded-xl border border-slate-100">
-                               <span className="text-[10px] text-slate-400 font-bold uppercase">Text Color</span>
-                               <input 
-                                  type="color" 
-                                  value={config.text}
-                                  onChange={(e) => {
-                                     const updated = {
-                                        ...priorityColors,
-                                        [level]: { ...config, text: e.target.value }
-                                     };
-                                     savePriorityColors(updated);
-                                  }}
-                                  className="w-8 h-8 rounded-lg cursor-pointer border-0 bg-transparent outline-none"
-                               />
-                            </div>
-                            <div className="flex justify-between items-center bg-white p-2 rounded-xl border border-slate-100">
-                               <span className="text-[10px] text-slate-400 font-bold uppercase">Border Color</span>
-                               <input 
-                                  type="color" 
-                                  value={config.border}
-                                  onChange={(e) => {
-                                     const updated = {
-                                        ...priorityColors,
-                                        [level]: { ...config, border: e.target.value }
-                                     };
-                                     savePriorityColors(updated);
-                                  }}
-                                  className="w-8 h-8 rounded-lg cursor-pointer border-0 bg-transparent outline-none"
-                               />
-                            </div>
-                         </div>
-                      </div>
-                   );
-                })}
-             </div>
+                              <div className="space-y-2.5 text-xs">
+                                 <div className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-slate-100">
+                                    <span className="text-[10px] text-slate-400 font-bold uppercase ml-1">Background</span>
+                                    <div className="relative h-8 w-8 rounded-lg border border-slate-200 overflow-hidden flex items-center justify-center shadow-inner">
+                                       <input 
+                                          type="color" 
+                                          value={config.bg}
+                                          onChange={(e) => {
+                                             const updated = {
+                                                ...priorityColors,
+                                                [level]: { ...config, bg: e.target.value }
+                                             };
+                                             savePriorityColors(updated);
+                                          }}
+                                          className="absolute inset-0 w-full h-full p-0 border-0 cursor-pointer outline-none bg-transparent scale-150"
+                                       />
+                                    </div>
+                                 </div>
+                                 <div className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-slate-100">
+                                    <span className="text-[10px] text-slate-400 font-bold uppercase ml-1">Text Color</span>
+                                    <div className="relative h-8 w-8 rounded-lg border border-slate-200 overflow-hidden flex items-center justify-center shadow-inner">
+                                       <input 
+                                          type="color" 
+                                          value={config.text}
+                                          onChange={(e) => {
+                                             const updated = {
+                                                ...priorityColors,
+                                                [level]: { ...config, text: e.target.value }
+                                             };
+                                             savePriorityColors(updated);
+                                          }}
+                                          className="absolute inset-0 w-full h-full p-0 border-0 cursor-pointer outline-none bg-transparent scale-150"
+                                       />
+                                    </div>
+                                 </div>
+                                 <div className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-slate-100">
+                                    <span className="text-[10px] text-slate-400 font-bold uppercase ml-1">Border Color</span>
+                                    <div className="relative h-8 w-8 rounded-lg border border-slate-200 overflow-hidden flex items-center justify-center shadow-inner">
+                                       <input 
+                                          type="color" 
+                                          value={config.border}
+                                          onChange={(e) => {
+                                             const updated = {
+                                                ...priorityColors,
+                                                [level]: { ...config, border: e.target.value }
+                                             };
+                                             savePriorityColors(updated);
+                                          }}
+                                          className="absolute inset-0 w-full h-full p-0 border-0 cursor-pointer outline-none bg-transparent scale-150"
+                                       />
+                                    </div>
+                                 </div>
+                              </div>
+                           </div>
+                        );
+                     })}
+                  </div>
 
-             <div className="mt-6 pt-4 border-t border-slate-100 flex justify-between items-center">
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                   💡 Changes are instantly populated and written to the persist storage.
-                </span>
-                <button 
-                   onClick={() => {
-                      const resets = {
-                         Low: { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' },
-                         Medium: { bg: '#eef2ff', text: '#4f46e5', border: '#c7d2fe' },
-                         High: { bg: '#fff7ed', text: '#ea580c', border: '#ffedd5' },
-                         Urgent: { bg: '#fef2f2', text: '#dc2626', border: '#fca5a5' }
-                      };
-                      savePriorityColors(resets);
-                   }}
-                   className="text-[10px] font-black text-rose-500 hover:text-rose-600 uppercase tracking-widest pl-2"
-                >
-                   Reset Defaults
-                </button>
-             </div>
-          </motion.div>
+                  <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row gap-4 justify-between items-center">
+                     <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider text-center sm:text-left">
+                        💡 Changes are instantly populated and written to persistent storage.
+                     </span>
+                     <div className="flex items-center gap-4">
+                        <button 
+                           onClick={() => {
+                              const resets = {
+                                 Low: { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' },
+                                 Medium: { bg: '#eef2ff', text: '#4f46e5', border: '#c7d2fe' },
+                                 High: { bg: '#fff7ed', text: '#ea580c', border: '#ffedd5' },
+                                 Urgent: { bg: '#fef2f2', text: '#dc2626', border: '#fca5a5' }
+                              };
+                              savePriorityColors(resets);
+                           }}
+                           className="text-[10px] font-black text-rose-500 hover:text-rose-600 uppercase tracking-widest pl-2 transition-colors"
+                        >
+                           Reset Defaults
+                        </button>
+                        <button 
+                           onClick={() => setIsConfigOpen(false)}
+                           className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors shadow-lg"
+                        >
+                           Done
+                        </button>
+                     </div>
+                  </div>
+               </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
@@ -486,16 +570,34 @@ export const Tasks = () => {
             >
                <div className="flex justify-between items-start mb-6">
                   <div className="flex flex-wrap gap-2">
-                     <span 
-                        className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all"
-                        style={{
-                           backgroundColor: (priorityColors[task.priority] || { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' }).bg,
-                           color: (priorityColors[task.priority] || { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' }).text,
-                           borderColor: (priorityColors[task.priority] || { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' }).border
-                        }}
-                     >
-                        {task.priority}
-                     </span>
+                     <div className="relative group/tooltip inline-block">
+                        <motion.span 
+                           className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border shadow-sm hover:shadow cursor-help inline-block"
+                           animate={{
+                              backgroundColor: (priorityColors[task.priority] || { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' }).bg,
+                              color: (priorityColors[task.priority] || { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' }).text,
+                              borderColor: (priorityColors[task.priority] || { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' }).border,
+                           }}
+                           whileHover={{ scale: 1.1, rotate: -2 }}
+                           whileTap={{ scale: 0.95 }}
+                           transition={{
+                              type: "spring",
+                              stiffness: 260,
+                              damping: 18
+                           }}
+                        >
+                           {task.priority}
+                        </motion.span>
+                        <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 scale-90 opacity-0 origin-bottom group-hover/tooltip:scale-100 group-hover/tooltip:opacity-100 transition-all duration-200 ease-out z-50 p-3 bg-slate-900 border border-slate-800 text-white rounded-xl shadow-xl space-y-1">
+                           <div className="flex items-center gap-1.5 font-bold uppercase text-[9px] tracking-wider text-slate-200 border-b border-slate-800 pb-1">
+                              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: (priorityColors[task.priority] || { text: '#475569' }).text }} />
+                              {task.priority} Priority
+                           </div>
+                           <p className="text-[10px] text-slate-400 font-medium leading-relaxed font-sans normal-case">
+                              {prioritySignifications[task.priority]}
+                           </p>
+                        </div>
+                     </div>
                      <span className="px-2.5 py-1 bg-slate-50 text-slate-400 border border-slate-100 rounded-lg text-[9px] font-black uppercase tracking-widest">
                         {task.category}
                      </span>
