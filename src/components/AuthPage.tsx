@@ -59,7 +59,6 @@ export const AuthPage = ({ onLogin, onBack }: AuthPageProps) => {
 
   const [view, setView] = useState<'login' | 'forgot'>('login');
   const [resetStatus, setResetStatus] = useState<string | null>(null);
-  const [showDemoAccounts, setShowDemoAccounts] = useState(false);
 
   // Focus tracking to provide morphing glow feedback
   const [focusedField, setFocusedField] = useState<'email' | 'password' | 'otp' | null>(null);
@@ -156,23 +155,23 @@ export const AuthPage = ({ onLogin, onBack }: AuthPageProps) => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row font-sans relative overflow-hidden">
+    <div className="min-h-screen bg-[#faf8f5] flex flex-col md:flex-row font-sans relative overflow-hidden">
       
       {/* Decorative Full Screen Morphing Background Grains */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden z-0 bg-slate-50">
+      <div className="absolute inset-0 pointer-events-none overflow-hidden z-0 bg-[#faf8f5]">
         <MorphingBlob className="w-96 h-96 bg-primary/5 -top-10 -left-10" delay={0} duration={16} />
-        <MorphingBlob className="w-[450px] h-[450px] bg-indigo-500/5 bottom-10 right-10" delay={2} duration={20} />
-        <MorphingBlob className="w-80 h-80 bg-slate-300/10 top-1/3 left-1/2" delay={4} duration={14} />
+        <MorphingBlob className="w-[450px] h-[450px] bg-yellow-500/5 bottom-10 right-10" delay={2} duration={20} />
+        <MorphingBlob className="w-80 h-80 bg-primary/10 top-1/3 left-1/2" delay={4} duration={14} />
       </div>
 
       {/* Side Banner */}
       <div className="hidden lg:flex w-1/2 bg-primary relative overflow-hidden flex-col justify-between p-16 z-10 shadow-2xl">
-        <div className="absolute inset-0 bg-gradient-to-tr from-primary via-primary to-indigo-950/60 mix-blend-overlay" />
+        <div className="absolute inset-0 bg-gradient-to-tr from-primary via-primary to-yellow-500/10 mix-blend-overlay" />
         
         {/* Animated fluid blobs inside side banner */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <MorphingBlob className="w-[500px] h-[500px] bg-white/10 -top-20 -right-20 blur-3xl" duration={18} />
-          <MorphingBlob className="w-96 h-96 bg-indigo-300/10 bottom-10 left-10 blur-3xl" delay={3} duration={15} />
+          <MorphingBlob className="w-96 h-96 bg-yellow-300/5 bottom-10 left-10 blur-3xl" delay={3} duration={15} />
         </div>
         
         <div className="relative z-10">
@@ -185,10 +184,10 @@ export const AuthPage = ({ onLogin, onBack }: AuthPageProps) => {
           </div>
           <h2 className="text-5xl font-extrabold text-white leading-tight mb-6 tracking-tight">
             Digitalizing <br /> 
-            <span className="text-indigo-200 italic font-medium">Education</span> <br /> 
+            <span className="text-[#facc15] font-black italic">Education</span> <br /> 
             in Tanzania
           </h2>
-          <p className="text-indigo-100/70 text-lg max-w-sm leading-relaxed font-medium">
+          <p className="text-slate-100/90 text-lg max-w-sm leading-relaxed font-medium">
             Professional school management with automated reports, fee tracking, and NECTA-compliant data.
           </p>
         </div>
@@ -213,11 +212,11 @@ export const AuthPage = ({ onLogin, onBack }: AuthPageProps) => {
         <motion.div 
           layout
           transition={{ type: "spring", stiffness: 260, damping: 28 }}
-          className="w-full max-w-md bg-white border border-slate-100/85 shadow-2xl p-8 sm:p-10 rounded-3xl relative"
+          className="w-full max-w-md bg-white border-t-4 border-t-[#facc15] border-x border-b border-slate-100 shadow-2xl p-8 sm:p-10 rounded-3xl relative"
         >
           {/* Internal floating background decorative morph lights */}
           <div className="absolute -top-12 -right-12 w-32 h-32 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
-          <div className="absolute -bottom-12 -left-12 w-32 h-32 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute -bottom-12 -left-12 w-32 h-32 bg-yellow-500/5 rounded-full blur-2xl pointer-events-none" />
 
           <AnimatePresence mode="wait">
             {is2FAChallenge ? (
@@ -246,7 +245,7 @@ export const AuthPage = ({ onLogin, onBack }: AuthPageProps) => {
                     <div className="relative">
                       {/* Gradient outline focus highlight */}
                       <motion.div 
-                        className="absolute inset-0 -m-[1px] rounded-lg bg-gradient-to-r from-primary to-indigo-500 opacity-0 pointer-events-none blur-[2px]"
+                        className="absolute inset-0 -m-[1px] rounded-lg bg-gradient-to-r from-[#064e3b] to-[#facc15] opacity-0 pointer-events-none blur-[2px]"
                         animate={{ opacity: focusedField === 'otp' ? 0.4 : 0 }}
                       />
                       <input
@@ -330,7 +329,7 @@ export const AuthPage = ({ onLogin, onBack }: AuthPageProps) => {
                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Email or Admission No</label>
                       <div className="relative">
                         <motion.div 
-                          className="absolute inset-0 -m-[1px] rounded-lg bg-gradient-to-r from-primary to-indigo-500 opacity-0 pointer-events-none blur-[2px]"
+                          className="absolute inset-0 -m-[1px] rounded-lg bg-gradient-to-r from-[#064e3b] to-[#facc15] opacity-0 pointer-events-none blur-[2px]"
                           animate={{ opacity: focusedField === 'email' ? 0.4 : 0 }}
                         />
                         <input
@@ -411,7 +410,7 @@ export const AuthPage = ({ onLogin, onBack }: AuthPageProps) => {
                     </div>
                     <div className="relative">
                       <motion.div 
-                        className="absolute inset-0 -m-[1px] rounded-lg bg-gradient-to-r from-primary to-indigo-500 opacity-0 pointer-events-none blur-[2px]"
+                        className="absolute inset-0 -m-[1px] rounded-lg bg-gradient-to-r from-[#064e3b] to-[#facc15] opacity-0 pointer-events-none blur-[2px]"
                         animate={{ opacity: focusedField === 'email' ? 0.4 : 0 }}
                       />
                       <input
@@ -432,7 +431,7 @@ export const AuthPage = ({ onLogin, onBack }: AuthPageProps) => {
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Password</label>
                     <div className="relative">
                       <motion.div 
-                        className="absolute inset-0 -m-[1px] rounded-lg bg-gradient-to-r from-primary to-indigo-500 opacity-0 pointer-events-none blur-[2px]"
+                        className="absolute inset-0 -m-[1px] rounded-lg bg-gradient-to-r from-[#064e3b] to-[#facc15] opacity-0 pointer-events-none blur-[2px]"
                         animate={{ opacity: focusedField === 'password' ? 0.4 : 0 }}
                       />
                       <input
@@ -473,75 +472,6 @@ export const AuthPage = ({ onLogin, onBack }: AuthPageProps) => {
                     )}
                   </motion.button>
                 </form>
-
-                {/* Legend panel accordion that morphs / slides open beautifully */}
-                <div className="mt-8 border-t border-slate-100 pt-6">
-                  <button 
-                    type="button"
-                    onClick={() => setShowDemoAccounts(!showDemoAccounts)}
-                    className="text-[10px] font-black text-primary/75 hover:text-primary uppercase tracking-widest flex items-center gap-1.5 focus:outline-none"
-                  >
-                    <motion.span 
-                      animate={{ rotate: showDemoAccounts ? 90 : 0 }}
-                      className="inline-block"
-                      transition={{ duration: 0.2 }}
-                    >
-                      ▶
-                    </motion.span>
-                    {showDemoAccounts ? 'Hide Demo Accounts Reference' : 'Show Demo Accounts Reference'}
-                  </button>
-                  
-                  <AnimatePresence>
-                    {showDemoAccounts && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.3, ease: "easeInOut" }}
-                        className="overflow-hidden"
-                      >
-                        <div className="mt-4 p-4 bg-slate-50 border border-slate-100 rounded-xl space-y-4 max-h-72 overflow-y-auto text-left">
-                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest select-none">
-                            🔐 System Credentials Legend
-                          </p>
-                          <div className="space-y-2.5 text-[11px] text-slate-600 font-medium font-mono leading-relaxed">
-                            <div>
-                              <span className="font-bold text-slate-900">Admin:</span>
-                              <br />
-                              Email: <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200">admin@school.tz</code>
-                              <br />
-                              Password: <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200">cian2003</code>
-                            </div>
-                            <div>
-                              <span className="font-bold text-slate-900">Teacher:</span>
-                              <br />
-                              Email: <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200">julius@school.tz</code>
-                              <br />
-                              Password: <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200">Kambarage</code>
-                            </div>
-                            <div>
-                              <span className="font-bold text-slate-900">Parent:</span>
-                              <br />
-                              Email: <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200">rama@gmail.com</code>
-                              <br />
-                              Password: <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200">Ramadhani</code>
-                            </div>
-                            <div>
-                              <span className="font-bold text-slate-900">Student:</span>
-                              <br />
-                              Email/Admn: <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200">said@student.tz</code> or <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200">2026/001</code>
-                              <br />
-                              Password: <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200">Mwinyi</code>
-                            </div>
-                          </div>
-                          <div className="pt-2 border-t border-slate-200/60 text-[10px] text-slate-400 font-bold uppercase tracking-wide leading-relaxed select-none">
-                            ℹ️ Custom Staff or Roles added through the <span className="text-primary italic">"Staff & Roles"</span> dashboard are instantly persisted to the LocalStorage database and login credentials can be used immediately.
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
               </motion.div>
             )}
           </AnimatePresence>

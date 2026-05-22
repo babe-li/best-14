@@ -22,7 +22,9 @@ import {
   Flag,
   Trash2,
   X,
-  Target
+  Target,
+  Palette,
+  Sliders
 } from 'lucide-react';
 import { storageService } from '../services/storageService';
 import { type Task, type TaskPriority, type TaskStatus, type TaskCategory, type User as UserType, type Student } from '../types';
@@ -39,6 +41,28 @@ export const Tasks = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [priorityColors, setPriorityColors] = useState<Record<TaskPriority, { bg: string; text: string; border: string }>>(() => {
+    const currentDb = storageService.getDB();
+    return currentDb.settings?.priorityColors || {
+      Low: { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' },
+      Medium: { bg: '#eef2ff', text: '#4f46e5', border: '#c7d2fe' },
+      High: { bg: '#fff7ed', text: '#ea580c', border: '#ffedd5' },
+      Urgent: { bg: '#fef2f2', text: '#dc2626', border: '#fca5a5' }
+    };
+  });
+
+  const savePriorityColors = (newColors: any) => {
+    setPriorityColors(newColors);
+    const currentDb = storageService.getDB();
+    if (!currentDb.settings) {
+      currentDb.settings = { sections: [], gradingScales: [] };
+    }
+    currentDb.settings.priorityColors = newColors;
+    storageService.saveDB(currentDb);
+    setDb(currentDb);
+  };
   
   const categories: TaskCategory[] = [
     'Academic', 
@@ -192,17 +216,147 @@ export const Tasks = () => {
             Operational Directives & Administrative Progress Tracking
           </p>
         </div>
-        <button 
-          onClick={() => {
-            resetForm();
-            setIsModalOpen(true);
-          }}
-          className="px-6 py-3 bg-slate-900 text-white rounded-2xl flex items-center gap-3 font-black text-[10px] uppercase tracking-widest shadow-xl shadow-slate-900/20 hover:scale-105 active:scale-95 transition-all"
-        >
-          <Plus size={18} />
-          Create New Task
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+             onClick={() => setIsConfigOpen(!isConfigOpen)}
+             className="px-5 py-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-2xl flex items-center gap-2.5 font-bold text-[10px] uppercase tracking-widest transition-all shadow-sm"
+          >
+             <Palette size={16} className="text-primary" />
+             Configure Badge Colors
+          </button>
+          <button 
+            onClick={() => {
+              resetForm();
+              setIsModalOpen(true);
+            }}
+            className="px-6 py-3 bg-slate-900 text-white rounded-2xl flex items-center gap-3 font-black text-[10px] uppercase tracking-widest shadow-xl shadow-slate-900/20 hover:scale-105 active:scale-95 transition-all"
+          >
+            <Plus size={18} />
+            Create New Task
+          </button>
+        </div>
       </div>
+
+      {/* Expandable Priority Color Configurer */}
+      <AnimatePresence>
+        {isConfigOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden bg-white rounded-3xl border border-slate-200 p-6 md:p-8 shadow-xl"
+          >
+             <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
+                <div>
+                   <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                      <Sliders size={16} className="text-primary" />
+                      Configure Task Priority Badge Styles
+                   </h3>
+                   <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">
+                      Customize dynamic background, border, and text colors stored in the server database
+                   </p>
+                </div>
+                <button 
+                   onClick={() => setIsConfigOpen(false)}
+                   className="p-1 px-3 bg-slate-50 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-950 font-black text-[9px] uppercase tracking-wider border border-slate-100 transition-all"
+                >
+                   Close
+                </button>
+             </div>
+
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {(['Low', 'Medium', 'High', 'Urgent'] as TaskPriority[]).map((level) => {
+                   const config = priorityColors[level] || { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' };
+                   return (
+                      <div key={level} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl space-y-4">
+                         <div className="flex justify-between items-center">
+                            <span className="text-xs font-black text-slate-900 uppercase tracking-widest">{level}</span>
+                            <span 
+                               className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all"
+                               style={{
+                                  backgroundColor: config.bg,
+                                  color: config.text,
+                                  borderColor: config.border
+                               }}
+                            >
+                               {level} Preview
+                            </span>
+                         </div>
+
+                         <div className="space-y-2.5 text-xs">
+                            <div className="flex justify-between items-center bg-white p-2 rounded-xl border border-slate-100">
+                               <span className="text-[10px] text-slate-400 font-bold uppercase">Background</span>
+                               <input 
+                                  type="color" 
+                                  value={config.bg}
+                                  onChange={(e) => {
+                                     const updated = {
+                                        ...priorityColors,
+                                        [level]: { ...config, bg: e.target.value }
+                                     };
+                                     savePriorityColors(updated);
+                                  }}
+                                  className="w-8 h-8 rounded-lg cursor-pointer border-0 bg-transparent outline-none"
+                               />
+                            </div>
+                            <div className="flex justify-between items-center bg-white p-2 rounded-xl border border-slate-100">
+                               <span className="text-[10px] text-slate-400 font-bold uppercase">Text Color</span>
+                               <input 
+                                  type="color" 
+                                  value={config.text}
+                                  onChange={(e) => {
+                                     const updated = {
+                                        ...priorityColors,
+                                        [level]: { ...config, text: e.target.value }
+                                     };
+                                     savePriorityColors(updated);
+                                  }}
+                                  className="w-8 h-8 rounded-lg cursor-pointer border-0 bg-transparent outline-none"
+                               />
+                            </div>
+                            <div className="flex justify-between items-center bg-white p-2 rounded-xl border border-slate-100">
+                               <span className="text-[10px] text-slate-400 font-bold uppercase">Border Color</span>
+                               <input 
+                                  type="color" 
+                                  value={config.border}
+                                  onChange={(e) => {
+                                     const updated = {
+                                        ...priorityColors,
+                                        [level]: { ...config, border: e.target.value }
+                                     };
+                                     savePriorityColors(updated);
+                                  }}
+                                  className="w-8 h-8 rounded-lg cursor-pointer border-0 bg-transparent outline-none"
+                               />
+                            </div>
+                         </div>
+                      </div>
+                   );
+                })}
+             </div>
+
+             <div className="mt-6 pt-4 border-t border-slate-100 flex justify-between items-center">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                   💡 Changes are instantly populated and written to the persist storage.
+                </span>
+                <button 
+                   onClick={() => {
+                      const resets = {
+                         Low: { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' },
+                         Medium: { bg: '#eef2ff', text: '#4f46e5', border: '#c7d2fe' },
+                         High: { bg: '#fff7ed', text: '#ea580c', border: '#ffedd5' },
+                         Urgent: { bg: '#fef2f2', text: '#dc2626', border: '#fca5a5' }
+                      };
+                      savePriorityColors(resets);
+                   }}
+                   className="text-[10px] font-black text-rose-500 hover:text-rose-600 uppercase tracking-widest pl-2"
+                >
+                   Reset Defaults
+                </button>
+             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Task Summary Grid */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -332,7 +486,14 @@ export const Tasks = () => {
             >
                <div className="flex justify-between items-start mb-6">
                   <div className="flex flex-wrap gap-2">
-                     <span className={cn("px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border", getPriorityColor(task.priority))}>
+                     <span 
+                        className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all"
+                        style={{
+                           backgroundColor: (priorityColors[task.priority] || { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' }).bg,
+                           color: (priorityColors[task.priority] || { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' }).text,
+                           borderColor: (priorityColors[task.priority] || { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' }).border
+                        }}
+                     >
                         {task.priority}
                      </span>
                      <span className="px-2.5 py-1 bg-slate-50 text-slate-400 border border-slate-100 rounded-lg text-[9px] font-black uppercase tracking-widest">

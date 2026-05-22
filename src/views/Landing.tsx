@@ -30,7 +30,7 @@ export const Landing = ({ onEnterApp }: LandingProps) => {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
 
   return (
-    <div className="min-h-screen bg-white font-sans selection:bg-primary selection:text-white relative">
+    <div className="min-h-screen bg-[#faf8f5] font-sans selection:bg-primary selection:text-white relative">
       {/* Global Background */}
       <div className="fixed inset-0 z-0 pointer-events-none opacity-20">
         <img 
@@ -39,11 +39,11 @@ export const Landing = ({ onEnterApp }: LandingProps) => {
           className="w-full h-full object-cover"
           referrerPolicy="no-referrer"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-white via-white/40 to-white" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#faf8f5] via-[#faf8f5]/40 to-[#faf8f5]" />
       </div>
 
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-xl border-b border-slate-100">
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-[#faf8f5]/80 backdrop-blur-xl border-b border-slate-100">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <SchoolLogo size={36} className="bg-primary rounded p-1.5 shadow-lg" variant="light" />
@@ -79,7 +79,7 @@ export const Landing = ({ onEnterApp }: LandingProps) => {
       <motion.div 
         initial={false}
         animate={{ height: isMenuOpen ? 'auto' : 0, opacity: isMenuOpen ? 1 : 0 }}
-        className="fixed top-20 left-0 right-0 z-40 bg-white border-b border-slate-100 overflow-hidden md:hidden"
+        className="fixed top-20 left-0 right-0 z-40 bg-[#faf8f5] border-b border-slate-100 overflow-hidden md:hidden"
       >
         <div className="px-6 py-8 flex flex-col gap-6">
           {['Features', 'Modules', 'Pricing', 'About'].map(item => (
@@ -106,7 +106,7 @@ export const Landing = ({ onEnterApp }: LandingProps) => {
             className="w-full h-full object-cover"
             referrerPolicy="no-referrer"
           />
-          <div className="absolute inset-0 bg-white/80 backdrop-blur-[2px]" />
+          <div className="absolute inset-0 bg-[#faf8f5]/80 backdrop-blur-[2px]" />
         </div>
         
         <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-20 items-center relative z-10">
@@ -182,7 +182,7 @@ export const Landing = ({ onEnterApp }: LandingProps) => {
       </section>
 
       {/* Stats/Badges */}
-      <section className="py-12 bg-slate-900 border-y border-slate-800">
+      <section className="py-12 bg-[#064e3b] border-y border-[#facc15]/20">
         <div className="max-w-7xl mx-auto px-6 flex flex-wrap justify-center md:justify-between items-center gap-12">
           {[
             { label: 'Active Users', value: '150k+', icon: Users },
@@ -191,12 +191,12 @@ export const Landing = ({ onEnterApp }: LandingProps) => {
             { label: 'Regions', value: '14+ TZ Regions', icon: Globe },
           ].map((stat, i) => (
             <div key={i} className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-primary">
+              <div className="w-10 h-10 rounded-full bg-[#faf8f5]/10 border border-[#facc15]/30 flex items-center justify-center text-[#facc15]">
                 <stat.icon size={20} />
               </div>
               <div>
                 <p className="text-white font-extrabold text-lg leading-none mb-1">{stat.value}</p>
-                <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest">{stat.label}</p>
+                <p className="text-[10px] text-[#faf8f5]/60 font-bold uppercase tracking-widest">{stat.label}</p>
               </div>
             </div>
           ))}

@@ -8,9 +8,16 @@ import { SCHOOL_CONFIG } from '../constants';
 
 const DB_KEY = 'sms_tanzania_db';
 
+export interface PriorityColorConfig {
+  bg: string;
+  text: string;
+  border: string;
+}
+
 export interface SystemSettings {
   sections: string[];
   gradingScales: GradingScale[];
+  priorityColors?: Record<string, PriorityColorConfig>;
 }
 
 interface DB {
@@ -282,7 +289,13 @@ const INITIAL_DB: DB = {
           points: s.points
         }))
       }
-    ]
+    ],
+    priorityColors: {
+      Low: { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' },
+      Medium: { bg: '#eef2ff', text: '#4f46e5', border: '#c7d2fe' },
+      High: { bg: '#fff7ed', text: '#ea580c', border: '#ffedd5' },
+      Urgent: { bg: '#fef2f2', text: '#dc2626', border: '#fca5a5' }
+    }
   },
   notifications: [],
   permissions: [

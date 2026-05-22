@@ -176,11 +176,11 @@ export const DashboardLayout = ({ children, user, onLogout, activeView, setActiv
 
         <div className="p-4 mt-auto">
           {!collapsed && (
-            <div className="p-4 bg-slate-900 rounded-xl text-white mb-4">
-              <div className="text-[10px] opacity-60 uppercase mb-1 font-bold">Academic Year</div>
-              <div className="text-lg font-bold tracking-tight mb-2 uppercase">May 2026</div>
+            <div className="p-4 bg-[#064e3b] border border-[#facc15]/20 rounded-xl text-white mb-4">
+              <div className="text-[10px] text-[#facc15] uppercase mb-1 font-bold">Academic Year</div>
+              <div className="text-lg font-bold tracking-tight mb-2 uppercase text-slate-100">May 2026</div>
               <div className="flex justify-between items-center">
-                <span className="px-2 py-1 bg-white/10 rounded text-[10px] font-bold">TERM II</span>
+                <span className="px-2 py-1 bg-white/10 rounded text-[10px] font-bold text-[#faf8f5]">TERM II</span>
                 <span className="text-[10px] text-emerald-400 font-bold">● ACTIVE</span>
               </div>
             </div>
@@ -368,15 +368,15 @@ export const DashboardLayout = ({ children, user, onLogout, activeView, setActiv
         </main>
 
         {/* Status Bar */}
-        <footer className="h-auto py-2 sm:h-8 bg-slate-900 text-white flex flex-col sm:flex-row items-center justify-between px-4 sm:px-8 text-[10px] shrink-0 uppercase tracking-widest font-bold gap-2">
-          <div className="flex flex-wrap gap-4 sm:gap-6 items-center justify-center">
-            <span className="opacity-50">DB: MARIADB</span>
+        <footer className="h-auto py-2 sm:h-8 bg-[#064e3b] text-white flex flex-col sm:flex-row items-center justify-between px-4 sm:px-8 text-[10px] shrink-0 uppercase tracking-widest font-bold gap-2 border-t border-[#facc15]/20">
+          <div className="flex flex-wrap gap-4 sm:gap-6 items-center justify-center text-[#faf8f5]">
+            <span className="text-[#facc15]">DB: MARIADB</span>
             <span className="flex items-center gap-1.5 text-emerald-400">
               <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
               Online
             </span>
           </div>
-          <div className="opacity-30 text-center">
+          <div className="opacity-60 text-center text-[#faf8f5]">
             Tanzania DPA COMPLIANT
           </div>
         </footer>
