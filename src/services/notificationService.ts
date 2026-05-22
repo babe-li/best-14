@@ -119,5 +119,27 @@ export const notificationService = {
         body: `Salutations,\n\nThis is a reminder for ${student.name} regarding the upcoming exam:\n\nTitle: ${exam.title}\nSubject: ${exam.subjectId}\nLevel: ${exam.classId}\nDate: ${new Date(exam.date).toLocaleDateString()}\n\nPlease ensure adequate preparation.`
       });
     }
+  },
+
+  async notifyFeeReminder(student: Student, remainingBalance: number): Promise<boolean> {
+    const emails = await this.getRecipientEmails(student.id);
+    const db = storageService.getDB();
+    
+    // If no emails found, construct or fetch a fallback
+    if (emails.length === 0) {
+      const parentUser = db.users.find(u => u.id === student.parentId);
+      const fallbackEmail = parentUser?.email || `${student.name.toLowerCase().replace(/\s+/g, '')}.parent@school.edu`;
+      emails.push(fallbackEmail);
+    }
+    
+    for (const email of emails) {
+      await this.sendEmail({
+        to: email,
+        type: NotificationType.FEE_REMINDER,
+        subject: `Outstanding Fee Payment Reminder: ${student.name}`,
+        body: `Salutations Parent/Guardian,\n\nThis is an automated reminder regarding the outstanding school fee balance for your child, ${student.name} (Admission Number: ${student.admissionNo}).\n\nOutstanding Balance: TZS ${remainingBalance.toLocaleString()}\n\nTo ensure secure clearance and prevent any operational interruption, please settle the remaining amount.\n\nPayments are accepted through all integrated financial organizations. All payments must settle directly to our centralized school settlement wallet at mobile/merchant number:\n\nSettlement Contact: 0657206083 (Tigo Pesa)\n\nThank you for your prompt attention and continuous partnership.\n\nBest Regards,\nFinance & Settlement Office\n${SCHOOL_CONFIG.name}`
+      });
+    }
+    return true;
   }
 };

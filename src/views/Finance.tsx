@@ -27,7 +27,8 @@ import {
   ArrowRight,
   Settings2,
   Trash2,
-  Edit2
+  Edit2,
+  Mail
 } from 'lucide-react';
 import { storageService } from '../services/storageService';
 import { notificationService } from '../services/notificationService';
@@ -104,6 +105,7 @@ export const Finance = () => {
   const [payerCardExpiry, setPayerCardExpiry] = useState('');
   const [payerCardCvv, setPayerCardCvv] = useState('');
   const [payerBankAccount, setPayerBankAccount] = useState('');
+  const [isSendingReminder, setIsSendingReminder] = useState<string | null>(null);
 
   const checkoutSteps = [
     "Contacting Secure Financial Integration Server...",
@@ -132,6 +134,19 @@ export const Finance = () => {
     setPayments(paymentList);
     setFeeStructure(db.fees);
   }, [currentUser]);
+
+  const handleSendReminder = async (student: Student) => {
+    setIsSendingReminder(student.id);
+    try {
+      await notificationService.notifyFeeReminder(student, student.feeBalance);
+      alert(`Reminder Sent!\nAn automated outstanding fee payment reminder email has been successfully sent to the parent/guardian regarding ${student.name}'s balance of TZS ${student.feeBalance.toLocaleString()}.\n\nSettle target: 0657206083.`);
+    } catch (error) {
+      console.error(error);
+      alert("Failed to send fee reminder. Please try again.");
+    } finally {
+      setIsSendingReminder(null);
+    }
+  };
 
   const handleRecordPayment = (e: React.FormEvent) => {
     e.preventDefault();
@@ -502,6 +517,9 @@ export const Finance = () => {
                     <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Paid</th>
                     <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Balance</th>
                     <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Status</th>
+                    {!isParent && (
+                      <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Actions</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -544,12 +562,30 @@ export const Finance = () => {
                               {status.label}
                             </span>
                           </td>
+                          {!isParent && (
+                            <td className="px-8 py-5 text-center">
+                              <button
+                                id={`remind-${student.id}`}
+                                disabled={student.feeBalance <= 0 || isSendingReminder === student.id}
+                                onClick={() => handleSendReminder(student)}
+                                className={cn(
+                                  "flex items-center gap-1.5 mx-auto px-3.5 py-1.5 rounded-xl text-[9px] font-extrabold uppercase tracking-widest border shadow-sm transition-all",
+                                  student.feeBalance <= 0 
+                                    ? "bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed" 
+                                    : "bg-indigo-50 border-indigo-100 text-indigo-600 hover:bg-indigo-100 hover:scale-[1.02] active:scale-[0.98]"
+                                )}
+                              >
+                                <Mail size={12} className={isSendingReminder === student.id ? "animate-spin" : ""} />
+                                {isSendingReminder === student.id ? 'Sending...' : 'Remind Parent'}
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       );
                     })}
                   {students.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-8 py-20 text-center text-slate-400 text-xs font-bold uppercase tracking-widest italic">
+                      <td colSpan={isParent ? 6 : 7} className="px-8 py-20 text-center text-slate-400 text-xs font-bold uppercase tracking-widest italic">
                         No student status data available
                       </td>
                     </tr>
