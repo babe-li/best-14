@@ -87,19 +87,19 @@ export const DashboardLayout = ({ children, user, onLogout, activeView, setActiv
   );
 
   const menuItems = [
-    { id: 'overview', label: 'Overview', icon: BarChart3, roles: ['admin', 'teacher', 'parent', 'student'] },
-    { id: 'students', label: 'Students', icon: Users, roles: ['admin', 'teacher', 'parent', 'student'] },
-    { id: 'attendance', label: 'Attendance', icon: Calendar, roles: ['admin', 'teacher', 'parent', 'student'] },
+    { id: 'overview', label: 'Overview', icon: BarChart3, roles: ['admin', 'teacher', 'parent', 'student', 'accountant', 'librarian'] },
+    { id: 'students', label: 'Students', icon: Users, roles: ['admin', 'teacher', 'parent', 'student', 'accountant'] },
+    { id: 'attendance', label: 'Attendance', icon: Calendar, roles: ['admin', 'teacher', 'parent', 'student', 'accountant', 'librarian'] },
     { id: 'tasks', label: 'Tasks', icon: ClipboardList, roles: ['admin', 'teacher'] },
     { id: 'permissions', label: 'Permissions', icon: ShieldAlert, roles: ['admin', 'teacher', 'parent'] },
-    { id: 'finance', label: 'Fees & Finance', icon: CreditCard, roles: ['admin'] },
+    { id: 'finance', label: 'Fees & Finance', icon: CreditCard, roles: ['admin', 'accountant'] },
     { id: 'pay-fees', label: 'Pay Fees', icon: CreditCard, roles: ['parent'] },
-    { id: 'exams', label: 'Exam Results', icon: GraduationCap, roles: ['admin', 'teacher', 'parent', 'student'] },
-    { id: 'messages', label: 'Messages', icon: MessageSquare, badge: 3, roles: ['admin', 'teacher', 'parent', 'student'] },
+    { id: 'exams', label: 'Exam Results', icon: GraduationCap, roles: ['admin', 'teacher', 'parent', 'student', 'accountant'] },
+    { id: 'messages', label: 'Messages', icon: MessageSquare, badge: 3, roles: ['admin', 'teacher', 'parent', 'student', 'accountant', 'librarian'] },
     { id: 'users', label: 'Staff & Roles', icon: ShieldAlert, roles: ['admin'] },
     { id: 'academics', label: 'Academics', icon: BookOpen, roles: ['admin', 'teacher', 'parent', 'student'] },
     { id: 'timetable', label: 'Timetable', icon: Table, roles: ['admin', 'teacher', 'student'] },
-    { id: 'library', label: 'Library', icon: Library, roles: ['admin', 'teacher', 'student'] },
+    { id: 'library', label: 'Library', icon: Library, roles: ['admin', 'teacher', 'student', 'librarian'] },
     { id: 'settings', label: 'Settings', icon: Settings, roles: ['admin'] },
   ];
 

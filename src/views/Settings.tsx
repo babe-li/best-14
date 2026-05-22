@@ -28,7 +28,8 @@ import {
   ChevronRight,
   ClipboardCheck
 } from 'lucide-react';
-import { storageService, type GradingScale, type GradingRange } from '../services/storageService';
+import { storageService } from '../services/storageService';
+import { type GradingScale, type GradingRange, type AcademicLevel } from '../types';
 import { SCHOOL_CONFIG } from '../constants';
 import { cn } from '../lib/utils';
 
@@ -191,7 +192,7 @@ export const Settings = () => {
     });
   };
 
-  const toggleLevelSelection = (level: string) => {
+  const toggleLevelSelection = (level: AcademicLevel) => {
     setEditingScale(prev => {
       const current = prev?.applicableLevels || [];
       const updated = current.includes(level) 
@@ -706,7 +707,7 @@ export const Settings = () => {
                        {SCHOOL_CONFIG.academicLevels.map(level => (
                          <button 
                            key={level}
-                           onClick={() => toggleLevelSelection(level)}
+                           onClick={() => toggleLevelSelection(level as AcademicLevel)}
                            className={cn(
                              "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border",
                              editingScale?.applicableLevels?.includes(level)

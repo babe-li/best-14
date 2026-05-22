@@ -94,7 +94,7 @@ export const Finance = () => {
 
   const [currentUser] = useState(storageService.getCurrentUser());
   const isParent = currentUser?.role === 'parent';
-  const isAdmin = currentUser?.role === 'admin';
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'accountant';
 
   useEffect(() => {
     const db = storageService.getDB();

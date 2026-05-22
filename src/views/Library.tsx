@@ -23,6 +23,9 @@ import { type Student } from '../types';
 import { cn, generateId } from '../lib/utils';
 
 export const Library = () => {
+  const [currentUser] = useState(storageService.getCurrentUser());
+  const canManageLibrary = currentUser?.role === 'admin' || currentUser?.role === 'librarian' || currentUser?.role === 'teacher';
+  
   const [students, setStudents] = useState<Student[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLendModalOpen, setIsLendModalOpen] = useState(false);
@@ -85,13 +88,15 @@ export const Library = () => {
           <p className="text-slate-400 text-sm font-medium tracking-tight">Repository of academic resources and lending logistics.</p>
         </div>
         
-        <button 
-          onClick={() => setIsLendModalOpen(true)}
-          className="flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:bg-primary-dark transition-all"
-        >
-          <Plus size={18} />
-          Issue Material
-        </button>
+        {canManageLibrary && (
+          <button 
+            onClick={() => setIsLendModalOpen(true)}
+            className="flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:bg-primary-dark transition-all"
+          >
+            <Plus size={18} />
+            Issue Material
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -173,7 +178,7 @@ export const Library = () => {
                        </span>
                     </td>
                     <td className="px-8 py-4 text-right">
-                       {loan.status === 'active' && (
+                       {loan.status === 'active' && canManageLibrary && (
                          <button 
                            onClick={() => handleReturn(loan.id)}
                            className="text-[10px] font-bold text-primary uppercase tracking-widest bg-slate-50 px-3 py-1.5 rounded hover:bg-primary hover:text-white transition-all"
